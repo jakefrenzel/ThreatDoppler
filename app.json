@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "ThreatDoppler",
+    "slug": "threatdoppler",
+    "scheme": "threatdoppler",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#110E0D",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.threatdoppler.app",
+      "infoPlist": {
+        "CFBundleDisplayName": "ThreatDoppler"
+      }
+    },
+    "android": {
+      "package": "com.threatdoppler.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#110E0D",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 140,
+          "resizeMode": "contain",
+          "backgroundColor": "#110E0D"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#FF6B35"
+        }
+      ]
+    ]
+  }
+}
