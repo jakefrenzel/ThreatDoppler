@@ -55,7 +55,7 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
   const trendSpoken = `30-day trend, from ${data.trend30[0]} to ${data.trend30[data.trend30.length - 1]}, lowest ${trend.low}, highest ${trend.high}`;
 
   return (
-    <Screen tabBar refreshing={refreshing} onRefresh={onRefresh}>
+    <Screen tabBar onRefresh={onRefresh}>
       <Header
         eyebrow={refreshing ? 'UPDATING…' : L.nowEyebrow(data.updatedAt, data.model)}
         title="Cyber weather"

@@ -60,10 +60,26 @@ export function RadarMark({ size, spinning = false, style }: Props) {
   const turn = useAnimatedValue(0);
 
   useEffect(() => {
-    if (!spinning || reduceMotion) {
+    if (reduceMotion) {
       turn.stopAnimation();
+      turn.setValue(0);
       return;
     }
+    if (!spinning) {
+      // Finish the current turn and come to rest at the starting angle, so the next spin
+      // doesn't begin from wherever this one stopped.
+      turn.stopAnimation((v) => {
+        if (v === 0) return;
+        Animated.timing(turn, {
+          toValue: 1,
+          duration: Math.max(1 - v, 0) * 1200,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start(({ finished }) => finished && turn.setValue(0));
+      });
+      return;
+    }
+    turn.stopAnimation();
     turn.setValue(0);
     const loop = Animated.loop(
       Animated.timing(turn, { toValue: 1, duration: 2000, easing: Easing.linear, useNativeDriver: true }),

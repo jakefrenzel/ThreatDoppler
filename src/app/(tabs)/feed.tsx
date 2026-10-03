@@ -122,7 +122,7 @@ export default function Feed() {
   ];
 
   return (
-    <Screen tabBar refreshing={status === 'refreshing'} onRefresh={refresh}>
+    <Screen tabBar onRefresh={refresh}>
       <Header
         eyebrow={`${filterName ? filterName.toUpperCase() : 'GLOBAL'} · LAST 24H`}
         title="Live feed"
