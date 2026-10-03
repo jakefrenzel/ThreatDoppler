@@ -15,7 +15,7 @@ import { useSnapshot } from '@/data/SnapshotProvider';
 import type { Snapshot } from '@/data/types';
 import { useTextSize } from '@/lib/a11y';
 import { personalIndex } from '@/lib/alerts';
-import { signed, signedInt } from '@/lib/format';
+import { plusMinus, signed, signedInt } from '@/lib/format';
 import { warning } from '@/lib/haptics';
 import { usePrefs } from '@/state/store';
 import { useColors } from '@/theme/ColorsProvider';
@@ -80,7 +80,7 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
             value={
               <>
                 <T size={26} weight={600} leading={1.1}>
-                  <CountUp value={index.value} run />
+                  <CountUp value={index.value} />
                 </T>
                 {/* "Show my index" (Settings): the personal index sits next to the global one. */}
                 {mine !== null && (
@@ -92,9 +92,9 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
             }
           />
           {[
-            { label: L.d24, value: signed(index.delta24h), color: deltaColor(index.delta24h) },
-            { label: L.d7, value: signed(index.delta7d), color: deltaColor(index.delta7d) },
-            { label: L.ci, value: `±${index.ci.toFixed(1)}`, color: c.ink },
+            { label: L.d24, value: <CountUp value={index.delta24h} format={signed} />, color: deltaColor(index.delta24h) },
+            { label: L.d7, value: <CountUp value={index.delta7d} format={signed} />, color: deltaColor(index.delta7d) },
+            { label: L.ci, value: <CountUp value={index.ci} format={plusMinus} />, color: c.ink },
           ].map((t) => (
             <Tile
               key={t.label}
@@ -156,7 +156,8 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
                   )}
                   <View style={{ width: 70, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <T mono size={12} style={{ minWidth: 18 }}>
-                      {String(v.score)}
+                      {/* In step with the score bar beside it (400 ms, 30 ms stagger per row). */}
+                      <CountUp value={v.score} digits={0} duration={400} delay={i * 30} />
                     </T>
                     <ScoreBar score={v.score} color={color} index={i} />
                   </View>
@@ -195,7 +196,7 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                   <BandDot color={b.color} />
                   <T size={17} weight={600}>
-                    {String(r.score)}
+                    <CountUp value={r.score} digits={0} />
                   </T>
                 </View>
               </Pressable>

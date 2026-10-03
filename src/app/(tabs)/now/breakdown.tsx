@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { Sparkline } from '@/components/charts';
 import { Segmented } from '@/components/controls';
-import { BandDot, Tile, TileRow } from '@/components/data';
+import { BandDot, CountUp, Tile, TileRow } from '@/components/data';
 import { BackHeader, Card } from '@/components/layout';
 import { Screen } from '@/components/Screen';
 import { Mono, T } from '@/components/T';
@@ -63,8 +63,8 @@ export default function Breakdown() {
       {data && hottest && (
         <>
           <TileRow wrap={accessibility}>
-            <Tile highlight label="HOTTEST" value={`${name(hottest.id)} ${hottest.score}`} />
-            <Tile label="YOUR AVERAGE" value={average !== null ? String(average) : '—'} />
+            <Tile highlight label="HOTTEST" value={<CountUp value={hottest.score} format={(n) => `${name(hottest.id)} ${n.toFixed(0)}`} />} />
+            <Tile label="YOUR AVERAGE" value={average !== null ? <CountUp value={average} digits={0} /> : '—'} />
             <Tile label="COOLING" value={name(cooling.id)} valueColor={c.b1} />
           </TileRow>
           <Card padding={[8, 14, 4]}>
@@ -112,7 +112,7 @@ export default function Breakdown() {
                   </View>
                   {!accessibility && <Sparkline values={r.series7d} color={band.color} />}
                   <T size={15} weight={600} style={{ width: 28 }}>
-                    {String(r.score)}
+                    <CountUp value={r.score} digits={0} />
                   </T>
                   <T mono size={11} color={dColor(r.delta24h)} style={{ width: 30 }} align="right">
                     {signedInt(r.delta24h)}

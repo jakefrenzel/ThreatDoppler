@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { HistoryChart } from '@/components/charts';
 import { Segmented } from '@/components/controls';
-import { StackedBar, Tile, bandColorByKey } from '@/components/data';
+import { CountUp, StackedBar, Tile, bandColorByKey } from '@/components/data';
 import { BackHeader, Card, CardHeader } from '@/components/layout';
 import { Screen } from '@/components/Screen';
 import { Mono, T } from '@/components/T';
@@ -35,14 +35,18 @@ export default function History() {
 
   const stats = h
     ? [
-        { label: L.stat.average, value: String(h.stats.average) },
-        { label: L.stat.median, value: String(h.stats.median) },
-        { label: L.stat.sd, value: h.stats.sd.toFixed(1) },
-        { label: L.stat.percentile, value: L.percentileValue(h.stats.percentile), highlight: true },
-        { label: L.stat.high, value: String(h.stats.high), color: bandFor(h.stats.high).color },
-        { label: L.stat.low, value: String(h.stats.low), color: bandFor(h.stats.low).color },
-        { label: L.stat.above70, value: String(h.stats.daysAbove70) },
-        { label: L.stat.above85, value: String(h.stats.daysAbove85) },
+        { label: L.stat.average, value: <CountUp value={h.stats.average} digits={0} /> },
+        { label: L.stat.median, value: <CountUp value={h.stats.median} digits={0} /> },
+        { label: L.stat.sd, value: <CountUp value={h.stats.sd} /> },
+        {
+          label: L.stat.percentile,
+          value: <CountUp value={h.stats.percentile} format={(n) => L.percentileValue(Math.round(n))} />,
+          highlight: true,
+        },
+        { label: L.stat.high, value: <CountUp value={h.stats.high} digits={0} />, color: bandFor(h.stats.high).color },
+        { label: L.stat.low, value: <CountUp value={h.stats.low} digits={0} />, color: bandFor(h.stats.low).color },
+        { label: L.stat.above70, value: <CountUp value={h.stats.daysAbove70} digits={0} /> },
+        { label: L.stat.above85, value: <CountUp value={h.stats.daysAbove85} digits={0} /> },
       ]
     : [];
 

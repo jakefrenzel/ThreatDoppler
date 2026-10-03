@@ -7,6 +7,11 @@ export function signed(n: number, digits = 1): string {
   return (n > 0 ? '+' : MINUS) + fixed;
 }
 
+/** Error margin, e.g. ±2.4. */
+export function plusMinus(n: number, digits = 1): string {
+  return `±${n.toFixed(digits)}`;
+}
+
 /** Signed integer with "0" for no change. */
 export function signedInt(n: number): string {
   const r = Math.round(n);

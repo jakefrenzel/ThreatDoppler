@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -61,7 +61,7 @@ export function Tile({
       <Mono size={labelSize} color={highlight ? c.ember : c.mute} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
         {label}
       </Mono>
-      {typeof value === 'string' || typeof value === 'number' ? (
+      {typeof value === 'string' || typeof value === 'number' || (isValidElement(value) && value.type === CountUp) ? (
         <T mono={valueMono} size={valueSize} weight={600} color={valueColor} style={{ marginTop: valueGap }} numberOfLines={1}>
           {value}
         </T>
@@ -162,19 +162,51 @@ export function GradientFill({ stops, radius = 0 }: { stops: [number, string][];
   );
 }
 
-/** Counts a number up from 0 to `value` once (700 ms ease-out), e.g. the index on Now. */
-export function CountUp({ value, digits = 1, run }: { value: number; digits?: number; run: boolean }) {
+/**
+ * Animated number (700 ms ease-out). Counts up from 0 when it first appears, then tweens from
+ * the number on screen to the new one whenever `value` changes (a refresh, a range switch).
+ * Render it inside a text element; a Tile accepts it directly as its `value`.
+ */
+export function CountUp({
+  value,
+  digits = 1,
+  format,
+  duration = 700,
+  delay = 0,
+  run = true,
+}: {
+  value: number;
+  digits?: number;
+  /** Formats each frame, e.g. `signed` for deltas. Defaults to `toFixed(digits)`. */
+  format?: (n: number) => string;
+  duration?: number;
+  delay?: number;
+  run?: boolean;
+}) {
   const reduceMotion = useReduceMotion();
   const [shown, setShown] = useState(0);
+  const current = useRef(0);
   const anim = useAnimatedValue(0);
   useEffect(() => {
     if (!run || reduceMotion) return;
-    anim.setValue(0);
-    const id = anim.addListener(({ value: v }) => setShown(v * value));
-    Animated.timing(anim, { toValue: 1, duration: 700, easing: EASE_OUT, useNativeDriver: false }).start(() => setShown(value));
-    return () => anim.removeListener(id);
-  }, [value, run, anim, reduceMotion]);
-  return <>{(reduceMotion ? value : shown).toFixed(digits)}</>;
+    anim.setValue(current.current);
+    const id = anim.addListener(({ value: v }) => {
+      current.current = v;
+      setShown(v);
+    });
+    const tween = Animated.timing(anim, { toValue: value, duration, delay, easing: EASE_OUT, useNativeDriver: false });
+    tween.start(({ finished }) => {
+      if (!finished) return;
+      current.current = value;
+      setShown(value);
+    });
+    return () => {
+      tween.stop();
+      anim.removeListener(id);
+    };
+  }, [value, run, anim, reduceMotion, duration, delay]);
+  const n = reduceMotion ? value : shown;
+  return <>{format ? format(n) : n.toFixed(digits)}</>;
 }
 
 export const bandColorByKey = (key: BandKey) => bands.find((b) => b.key === key)!.color;

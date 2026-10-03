@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { Tile, TileRow } from '@/components/data';
+import { CountUp, Tile, TileRow } from '@/components/data';
 import { Card, CardHeader, Header, HeaderPill } from '@/components/layout';
 import { OFFLINE_OPACITY, OfflineBanner } from '@/components/OfflineBanner';
 import { Screen } from '@/components/Screen';
@@ -14,7 +14,7 @@ import { vectorNames } from '@/data/catalog';
 import { useSnapshot } from '@/data/SnapshotProvider';
 import type { ForecastDay } from '@/data/types';
 import { useTextSize } from '@/lib/a11y';
-import { signedInt } from '@/lib/format';
+import { plusMinus, signedInt } from '@/lib/format';
 import { useColors } from '@/theme/ColorsProvider';
 import { bandFor, heatForecastStops } from '@/theme/tokens';
 
@@ -104,14 +104,14 @@ export default function Forecast() {
           <Tile
             highlight
             label={L.peak(peak.day)}
-            value={String(peak.point)}
+            value={<CountUp value={peak.point} digits={0} />}
             valueSize={24}
             style={{ flex: 1.3, flexBasis: accessibility ? '48%' : undefined }}
             accessibilityLabel={`Peak ${DAY_NAMES[peak.day]}, ${peak.point}, ${bandFor(peak.point).name}`}
           />
-          <Tile label={L.low(low.day)} value={String(low.point)} valueMono style={{ flexBasis: accessibility ? '48%' : undefined }} />
-          <Tile label={L.mean} value={mean.toFixed(1)} valueMono style={{ flexBasis: accessibility ? '48%' : undefined }} />
-          <Tile label={L.mae} value={`±${data.forecastStats.mae.toFixed(1)}`} valueMono style={{ flexBasis: accessibility ? '48%' : undefined }} />
+          <Tile label={L.low(low.day)} value={<CountUp value={low.point} digits={0} />} valueMono style={{ flexBasis: accessibility ? '48%' : undefined }} />
+          <Tile label={L.mean} value={<CountUp value={mean} />} valueMono style={{ flexBasis: accessibility ? '48%' : undefined }} />
+          <Tile label={L.mae} value={<CountUp value={data.forecastStats.mae} format={plusMinus} />} valueMono style={{ flexBasis: accessibility ? '48%' : undefined }} />
         </TileRow>
 
         <Card padding={[10, 14, 4]}>
