@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { describe, type EventRow, groupName, productName, short } from "./events.ts";
+import { describe, type EventRow, groupName, kevAction, productName, short } from "./events.ts";
 
 const at = "2026-10-03T14:05:00Z";
 const ctx = { impact: 0.43, bins: [0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] };
@@ -43,7 +43,7 @@ Deno.test("a KEV addition reads as the plan's example", () => {
   assert.equal(event.impact, 0.4);
   assert.equal(event.source, "CISA KEV");
   assert.equal(detail.stats[0].value.technical, "+0.4");
-  assert.equal(detail.actions[0].technical, "Apply mitigations per vendor instructions.");
+  assert.equal(detail.actions[0].technical, "Apply the vendor's mitigations for Ivanti Endpoint Manager Mobile, or stop using it until you can");
   assert.deepEqual(detail.bins.values, [0, 25, 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100]);
   assert.equal(detail.bins.peak, "PEAK 4 / DAY");
   assert.deepEqual(detail.iocs, []);
@@ -72,4 +72,28 @@ Deno.test("every kind has both wordings and a source", () => {
   assert.equal(describe(rows[3], ctx).event.title.technical, "715 malicious packages published (npm 700, PyPI 15)");
   assert.equal(describe(rows[4], ctx).event.title.plain, "Acme data breach: 1.2M accounts exposed");
   assert.equal(describe(rows[5], ctx).event.title.technical, "Layer 7 DDoS traffic 31% above its 28-day normal");
+});
+
+Deno.test("KEV required actions are cut to a checklist item", () => {
+  const name = "Citrix NetScaler";
+  const bod2604 = "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 " +
+    "Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” " +
+    "(see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if " +
+    "mitigations are unavailable.";
+  assert.equal(kevAction(bod2604, name).technical, "Apply the vendor's mitigations for Citrix NetScaler, or stop using it until you can");
+  assert.equal(kevAction("Apply updates per vendor instructions.", name).technical, "Update Citrix NetScaler per vendor instructions");
+  assert.equal(
+    kevAction("The impacted product is end-of-life (EoL) and/or end-of-service (EoS). Users should discontinue utilization of the product.", name).technical,
+    "Citrix NetScaler is end-of-life: disconnect or replace it",
+  );
+  assert.equal(
+    kevAction("Please adhere to CISA’s guidelines to assess exposure and mitigate risks associated with Cisco SD-WAN devices.", name).plain,
+    "Follow the US government's advice for Citrix NetScaler",
+  );
+  // Short, specific wording is kept as it is.
+  assert.equal(kevAction("Contact the vendor for guidance on remediating firmware, per their advisory.", name).technical,
+    "Contact the vendor for guidance on remediating firmware, per their advisory.");
+  const odd = kevAction(`Reconfigure the appliance. ${"x".repeat(200)}`, name);
+  assert.equal(odd.technical, "Reconfigure the appliance.");
+  assert.ok(kevAction("y".repeat(300), name).technical.length <= 120);
 });

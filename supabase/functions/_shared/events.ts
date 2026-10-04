@@ -47,6 +47,29 @@ export function productName(vendor: string, product: string): string {
   return p.toLowerCase().startsWith(v.toLowerCase()) ? p : `${v} ${p}`;
 }
 
+/**
+ * KEV's "required action", made short enough for a checklist. Most entries use a few standard
+ * phrasings; the long ones add US federal directive boilerplate (BOD 22-01, BOD 26-04) that the
+ * deadline tile already covers. The full text is on the KEV entry, which the detail page links to.
+ */
+export function kevAction(text: string, name: string): Worded {
+  const t = text.toLowerCase();
+  if (/end-of-life|\beol\b|end-of-service|\beos\b/.test(t)) {
+    return w(`${name} is end-of-life: disconnect or replace it`, `${name} is no longer supported: replace it`);
+  }
+  if (/emergency directive|cisa instructions|cisa’s guidelines|cisa's guidelines/.test(t)) {
+    return w(`Follow CISA's guidance for ${name}, linked from the KEV entry`, `Follow the US government's advice for ${name}`);
+  }
+  if (/mitigation|remediation/.test(t)) {
+    return w(`Apply the vendor's mitigations for ${name}, or stop using it until you can`, `Update ${name}, or switch it off until you can`);
+  }
+  if (/\bupdates?\b/.test(t)) {
+    return w(`Update ${name} per vendor instructions`, `Update ${name}, or switch it off until you can`);
+  }
+  const first = text.split(/(?<=\.)\s/)[0].trim();
+  return w(first.length > 120 ? `${first.slice(0, 119).trimEnd()}…` : first, `Follow the maker's advice to fix ${name}`);
+}
+
 const ECOSYSTEM_NAMES: Record<string, string> = { npm: "npm", PyPI: "PyPI", RubyGems: "RubyGems", NuGet: "NuGet" };
 
 function ecosystems(data: EventRow["data"]): [string, number][] {
@@ -90,7 +113,7 @@ function words(e: EventRow): Wording {
         ],
         bins: w("KEV ADDITIONS · DAILY", "NEW FLAWS BEING USED · DAILY"),
         actions: [
-          w(String(d.action), `Update ${name}, or switch it off until you can`),
+          kevAction(String(d.action), name),
           w(`Check for compromise of ${name} since ${dayMonth(String(d.added))}`, "Ask IT to check it for break-ins"),
         ],
       };
