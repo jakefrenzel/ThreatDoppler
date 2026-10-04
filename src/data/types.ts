@@ -59,7 +59,7 @@ export interface ForecastDay {
   delta: number;
 }
 
-export type EventType = 'ransomware' | 'exploit' | 'ddos' | 'phishing' | 'supply';
+export type EventType = 'ransomware' | 'exploit' | 'ddos' | 'phishing' | 'supply' | 'breach';
 
 export interface ThreatEvent {
   id: string;

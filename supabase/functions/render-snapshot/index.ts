@@ -7,14 +7,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   AreaScore,
+  EventType,
   ForecastDay,
   IndexSummary,
   RegionId,
   SectorId,
   SnapshotFile,
+  ThreatDetail,
+  ThreatEvent,
   VectorId,
   VectorScore,
 } from "../../../src/data/types.ts";
+import { describe, type EventRow } from "../_shared/events.ts";
 import { forecast, HORIZON } from "../_shared/forecast.ts";
 import { buildHistory, type IndexDay } from "../_shared/history.ts";
 import { check, runInBackground } from "../_shared/runs.ts";
@@ -136,6 +140,111 @@ function noise(values: number[]): number {
   return round1((at(0.95) - at(0.05)) / 2);
 }
 
+const EVENT_TYPE_ORDER: EventType[] = ["ransomware", "exploit", "phishing", "ddos", "supply", "breach"];
+const FEED_HOURS = 24;
+/** The "new" count on the feed's live pill. */
+const NEW_HOURS = 6;
+
+/** Daily values for the 14 days ending `end`, oldest first; missing days are 0. */
+function last14(values: Map<string, number>, end: string): number[] {
+  return Array.from({ length: 14 }, (_, i) => values.get(shiftDay(end, i - 13)) ?? 0);
+}
+
+/**
+ * Events from the last five years. The last 24 hours become the feed and detail pages; every day
+ * also gets the largest event of its top sub-index within 3 days, to name history peaks.
+ */
+async function feed(admin: SupabaseClient, days: IndexDay[], vectors: VectorScore[]) {
+  const rows: EventRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const page = check(
+      await admin.from("events").select("id, kind, type, vector, at, magnitude, data").gte("at", days[0].day)
+        .order("at", { ascending: true }).order("id").range(from, from + 999),
+      "read events",
+    ) ?? [];
+    rows.push(...page.map((r) => ({ ...r, magnitude: Number(r.magnitude) }) as EventRow));
+    if (page.length < 1000) break;
+  }
+
+  const byDay = new Map<string, EventRow[]>();
+  for (const e of rows) byDay.set(e.at.slice(0, 10), [...(byDay.get(e.at.slice(0, 10)) ?? []), e]);
+  for (const d of days) {
+    let best: EventRow | undefined;
+    for (let k = -3; k <= 3; k++) {
+      for (const e of byDay.get(shiftDay(d.day, k)) ?? []) {
+        if (e.vector === d.top && (!best || e.magnitude > best.magnitude)) best = e;
+      }
+    }
+    if (best) d.event = { title: describe(best, { impact: 0, bins: [] }).event.title.technical, type: best.vector };
+  }
+
+  const now = Date.now();
+  const recent = rows.filter((e) => Date.parse(e.at) >= now - FEED_HOURS * 3_600_000).reverse();
+
+  // Daily series for the detail charts.
+  const end = new Date(now).toISOString().slice(0, 10);
+  const signalRows = check(
+    await admin.from("signals_daily").select("signal, day, value")
+      .in("signal", ["kev_additions", "kev_ransomware", "osv_malicious"]).gt("day", shiftDay(end, -40)),
+    "read signals_daily",
+  ) ?? [];
+  const radarRows = check(
+    await admin.from("radar_daily").select("day, value").eq("metric", "l7").gt("day", shiftDay(end, -40)),
+    "read radar_daily",
+  ) ?? [];
+  const groups = [...new Set(recent.filter((e) => e.kind === "ransom_surge").map((e) => String(e.data.group)))];
+  const groupRows = groups.length
+    ? check(
+      await admin.from("ransom_counts_daily").select("group_name, day, posts").in("group_name", groups)
+        .gt("day", shiftDay(end, -40)),
+      "read ransom_counts_daily",
+    ) ?? []
+    : [];
+  const series = (pairs: [string, number][]) => new Map(pairs);
+  const signal = (id: string) => series(signalRows.filter((r) => r.signal === id).map((r) => [r.day, Number(r.value)]));
+  const breaches = new Map<string, number>();
+  for (const e of rows.filter((e) => e.kind === "breach")) breaches.set(e.at.slice(0, 10), (breaches.get(e.at.slice(0, 10)) ?? 0) + 1);
+  const binsFor = (e: EventRow): number[] => {
+    const day = e.at.slice(0, 10);
+    switch (e.kind) {
+      case "kev":
+        return last14(signal(e.data.ransomware ? "kev_ransomware" : "kev_additions"), day);
+      case "ransom_surge":
+        return last14(series(groupRows.filter((r) => r.group_name === e.data.group).map((r) => [r.day, r.posts])), day);
+      case "package_wave":
+        return last14(signal("osv_malicious"), day);
+      case "breach":
+        return last14(breaches, day);
+      case "ddos_spike":
+        return last14(series(radarRows.map((r) => [r.day, Number(r.value)])), day);
+    }
+  };
+
+  // An event's impact is its share (by magnitude) of its sub-index's latest rise, in index points.
+  // Events add activity, so a falling sub-index gives its events no impact rather than a negative one.
+  const totals = new Map<VectorId, number>();
+  for (const e of recent) totals.set(e.vector, (totals.get(e.vector) ?? 0) + e.magnitude);
+  const events: ThreatEvent[] = [];
+  const threats: Record<string, ThreatDetail> = {};
+  for (const e of recent) {
+    const v = vectors.find((x) => x.id === e.vector);
+    const impact = v ? v.weight * Math.max(0, v.delta24h) * (e.magnitude / (totals.get(e.vector) || 1)) : 0;
+    const { event, detail } = describe(e, { impact, bins: binsFor(e) });
+    events.push(event);
+    threats[e.id] = detail;
+  }
+
+  return {
+    events,
+    threats,
+    eventMix: EVENT_TYPE_ORDER
+      .map((type) => ({ type, count: events.filter((e) => e.type === type).length }))
+      .filter((m) => m.count > 0),
+    newEvents: recent.filter((e) => Date.parse(e.at) >= now - NEW_HOURS * 3_600_000).length,
+    netImpact24h: round1(events.reduce((a, e) => a + e.impact, 0)),
+  };
+}
+
 async function render(admin: SupabaseClient): Promise<number> {
   const weights = new Map(
     (check(await admin.from("vectors").select("id, weight"), "read vectors") ?? [])
@@ -194,7 +303,12 @@ async function render(admin: SupabaseClient): Promise<number> {
     });
   }
 
-  const [area, ahead] = await Promise.all([areas(admin, today), forecasts(admin, today, values)]);
+  // feed() names history peaks on `days`, so it runs before buildHistory().
+  const [area, ahead, live] = await Promise.all([
+    areas(admin, today),
+    forecasts(admin, today, values),
+    feed(admin, days, vectors),
+  ]);
 
   const sources: Record<string, string | null> = {};
   for (const source of SOURCES) {
@@ -221,6 +335,7 @@ async function render(admin: SupabaseClient): Promise<number> {
       history: buildHistory(days),
       ...area,
       ...ahead,
+      ...live,
     },
   };
 

@@ -45,6 +45,15 @@ Deno.test("peaks are spread out and labelled with the top sub-index", () => {
   assert.equal(d90.peaks[0].title, "Exploitation activity peaked");
 });
 
+Deno.test("a peak takes its event's title and type when there is one", () => {
+  const all = days(90, (i) => (i === 40 ? 90 : 30));
+  all[40].event = { title: "CISA adds CVE-2026-1 (Acme VPN) to KEV", type: "exploitation" };
+  all[40].top = "ransomware";
+  const [, d90] = buildHistory(all);
+  assert.equal(d90.peaks[0].title, "CISA adds CVE-2026-1 (Acme VPN) to KEV");
+  assert.equal(d90.peaks[0].type, "exploitation");
+});
+
 Deno.test("skips ranges with too little data", () => {
   assert.deepEqual(buildHistory(days(1, () => 50)).map((r) => r.key), []);
 });

@@ -5,6 +5,8 @@ export interface IndexDay {
   day: string; // YYYY-MM-DD
   value: number;
   top: VectorId | null;
+  /** The largest event of the top sub-index around that day, if any; labels the day as a peak. */
+  event?: { title: string; type: VectorId };
 }
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -16,7 +18,7 @@ const month = (day: string) => MONTHS[Number(day.slice(5, 7)) - 1];
 const dayMonth = (day: string) => `${day.slice(8, 10)} ${month(day)}`;
 const monthYear = (day: string) => `${month(day)} ${day.slice(2, 4)}`;
 
-/** Short titles for a peak until events exist (step 7). */
+/** Titles for a peak with no event to name it. */
 const PEAK_TITLES: Record<VectorId, string> = {
   ransomware: "Ransomware activity peaked",
   exploitation: "Exploitation activity peaked",
@@ -94,8 +96,8 @@ function peaks(days: IndexDay[], spec: Spec): HistoryRange["peaks"] {
     const t = Date.parse(d.day);
     if (taken.some((x) => Math.abs(x - t) < spec.peakGap * DAY_MS)) continue;
     taken.push(t);
-    const type = d.top ?? "exploitation";
-    out.push({ date: spec.date(d.day), title: PEAK_TITLES[type], type, value: Math.round(d.value) });
+    const type = d.event?.type ?? d.top ?? "exploitation";
+    out.push({ date: spec.date(d.day), title: d.event?.title ?? PEAK_TITLES[type], type, value: Math.round(d.value) });
     if (out.length === 3) break;
   }
   return out;

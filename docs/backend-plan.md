@@ -178,13 +178,22 @@ areas mostly follow the global scores, differing only through their mix.
 | Event | Rule | Type |
 |---|---|---|
 | KEV addition | Each new KEV entry | `exploit`, or `ransomware` if the KEV entry is flagged as used in ransomware campaigns |
-| Ransomware surge | A group posts N or more victims in 24 hours | `ransomware` (shows counts, never names) |
-| Malicious package wave | N or more malicious packages in one ecosystem in 24 hours | `supply` |
-| New breach | Each HIBP breach added | `breach` (decision 4) |
-| DDoS spike | Radar layer 7 volume far above its 28-day normal | `ddos` |
+| Ransomware surge | A group posts 10 or more victims in a UTC day (about 170 a year) | `ransomware` (shows counts, never names) |
+| Malicious package wave | A day with at least 200 new malicious packages and at least 5× the previous 28 days' median, across all ecosystems (about 18 a year) | `supply` |
+| New breach | Each HIBP breach added, with the same exclusions as the signal | `breach` (decision 4) |
+| DDoS spike | Radar layer 7 volume at least 1.2× its previous 28 days' median (the busiest 5% of days, about 15 a year) | `ddos` |
+
+Thresholds were set from the last year's data (2026-10-04). The rules run in SQL
+(`generate_events()`, hourly with the scores) and keep facts only; a day-level event keeps the time it
+was first detected, and is removed if revised counts stop qualifying. The same events, back to 2021,
+name the history peaks: each peak gets the largest event of its top sub-index within 3 days. Phishing
+has no event rule (Radar's email data is a share, not a list of campaigns), so its feed chip stays
+empty.
 
 **Impact and wording.**
-- An event's impact is its share of its sub-index's change, times that sub-index's weight.
+- An event's impact is its share (by magnitude) of its sub-index's latest rise, times that
+  sub-index's weight. Events add activity, so when a sub-index fell, its events get 0 rather than a
+  negative impact.
 - Technical and Plain text come from wording templates for each event kind. Example for a KEV
   addition: Technical "CISA adds CVE-2026-1234 (Ivanti EPMM) to KEV · EPSS 0.94", Plain "Attackers
   are using a flaw in Ivanti EPMM".
@@ -301,7 +310,8 @@ App ──► fetch latest.json (fall back to the RPC) ──► existing Snapsh
 - **About → How the index works:** describe the method above, including "sector and region views are
   modelled estimates".
 - Breakdown screen: a small "Modelled" note until real sector/region data exists.
-- Add the `breach` event type (decision 4). Hide "Recent deliveries" until milestone 3.
+- ~~Add the `breach` event type (decision 4)~~ (done in step 7). Hide "Recent deliveries" until
+  milestone 3. The breach detail page must link to haveibeenpwned.com (HIBP licence).
 - Sub-indices with no data show "No data yet" instead of a number.
 
 ## Order of work

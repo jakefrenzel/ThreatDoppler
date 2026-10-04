@@ -22,6 +22,10 @@ const genericActions: Record<ThreatEvent['type'], ThreatDetail['actions']> = {
     { technical: 'Audit dependencies for the affected versions', plain: 'Ask IT whether you use the affected software' },
     { technical: 'Rotate secrets exposed to build systems', plain: 'Change passwords the software could see' },
   ],
+  breach: [
+    { technical: 'Check exposure for your domains at haveibeenpwned.com', plain: 'Check haveibeenpwned.com for your email address' },
+    { technical: 'Reset reused credentials and enforce MFA', plain: 'Change any password you used there, and turn on two-step login' },
+  ],
 };
 
 /** Detail for an event. Falls back to a summary built from the event when the feed has no full report. */

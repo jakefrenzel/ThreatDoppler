@@ -90,6 +90,7 @@ export const eventTypes: Record<
   phishing: { label: 'PHISHING', chip: 'Phishing', mix: 'PHISH', color: bandColor.b2, vector: 'phishing' },
   ddos: { label: 'DDOS', chip: 'DDoS', mix: 'DDOS', color: bandColor.b3, vector: 'ddos' },
   supply: { label: 'SUPPLY CHAIN', chip: 'Supply chain', mix: 'SUPPLY', color: palette.mute, vector: 'supply' },
+  breach: { label: 'BREACH', chip: 'Breaches', mix: 'BREACH', color: bandColor.b1, vector: 'insider' },
 };
 
-export const eventTypeOrder: EventType[] = ['ransomware', 'exploit', 'phishing', 'ddos', 'supply'];
+export const eventTypeOrder: EventType[] = ['ransomware', 'exploit', 'phishing', 'ddos', 'supply', 'breach'];
