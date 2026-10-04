@@ -23,6 +23,8 @@ npm run lint
 npm test
 ```
 
+GitHub Actions runs the same three on every push (`.github/workflows/checks.yml`). On a fresh clone, run `npx expo start` or `npx expo customize tsconfig.json` once before `npm run typecheck`: typed routes are generated into gitignored files, and without them route strings go unchecked.
+
 ## Layout
 
 ```

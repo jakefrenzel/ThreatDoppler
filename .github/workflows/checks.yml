@@ -1,0 +1,40 @@
+name: Checks
+
+# Every branch push is checked, which also covers pull requests from branches in this repo.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the run it replaces.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Typed routes live in .expo/types and expo-env.d.ts, which are gitignored and normally
+      # written by `expo start`. Without them tsc still passes but stops checking route strings.
+      - name: Generate typed routes
+        run: npx expo customize tsconfig.json
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test -- --ci
