@@ -218,8 +218,10 @@ App ──► fetch latest.json (fall back to the RPC) ──► existing Snapsh
   from Windows without Docker: write migrations by hand, `db push`, and `functions deploy --use-api`.
   Docker Desktop is only needed for running functions locally.
 - **Nightly GitHub Actions job:**
-  - `supabase db dump` (roles, schema and data), gzipped and pushed to a **private** backup repo.
-    Only derived tables matter; raw data can be fetched again.
+  - `supabase db dump` (roles, schema and data) as plain SQL at fixed paths, pushed to a **private**
+    backup repo. Git stores each night as a diff, and its history is the list of backups. Only
+    derived tables matter; raw data can be fetched again, so large raw tables can be left out of the
+    data dump with `-x`.
   - In the same job, a keep-alive call to `get_snapshot`. Free projects pause after about a week with
     no database activity, and it's unclear whether cron jobs count.
 - **Deployment:** manual from the CLI at first. Later, a workflow on push to `main`

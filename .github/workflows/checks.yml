@@ -38,3 +38,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test -- --ci
+
+      # Edge functions are Deno code, so tsc and ESLint skip them. Each function has its own
+      # deno.json, so each is checked from its own folder. Shared code is checked through them.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check edge functions
+        run: |
+          shopt -s nullglob
+          for entry in supabase/functions/*/index.ts; do
+            echo "deno check $entry"
+            (cd "$(dirname "$entry")" && deno check index.ts)
+          done

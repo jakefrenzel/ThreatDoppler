@@ -37,6 +37,7 @@
     "eslint-config-expo": "~57.0.2",
     "jest": "^29.7.0",
     "jest-expo": "^57.0.5",
+    "supabase": "^2.119.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -56,6 +57,13 @@
     ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
-    }
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/supabase/"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/supabase/"
+    ]
   }
 }
