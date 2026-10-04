@@ -8,6 +8,7 @@ import { selectionTick } from '@/lib/haptics';
 import { useAnimatedValue } from '@/lib/useAnimatedValue';
 import { useColors } from '@/theme/ColorsProvider';
 import { bandColor, fonts, palette } from '@/theme/tokens';
+import { useScrollLock } from './scrollLock';
 
 let chartId = 0;
 const useId = (prefix: string) => useState(() => `${prefix}${chartId++}`)[0];
@@ -32,6 +33,8 @@ interface Scrub {
 const SCRUB_SLOP = 6;
 /** A touch shorter than this that doesn't move is a tap, not a scrub. */
 const TAP_MS = 250;
+/** Held this long before moving, a touch scrubs in any direction instead of scrolling the page. */
+const HOLD_MS = 300;
 
 /**
  * Draws a chart as two layers in the same viewBox: `base` (reference lines, labels) shows
@@ -41,8 +44,8 @@ const TAP_MS = 250;
  * the chart still. Under Reduce Motion it shows at once.
  *
  * With `scrub`, touching the chart shows a line and dot on the nearest point with its date and
- * value, following the finger, like a stocks app. A sideways drag holds on to the touch; a
- * vertical one is handed back so the page still scrolls.
+ * value, following the finger, like a stocks app. A sideways drag, or a touch held for a moment,
+ * scrubs and stops the page scrolling until the finger lifts; a vertical swipe still scrolls.
  */
 function RevealChart({
   width,
@@ -79,10 +82,22 @@ function RevealChart({
       setActive(index);
     }
   };
+  // While scrubbing, the page holds still (see scrollLock.ts).
+  const lockScroll = useScrollLock();
+  const lock = () => {
+    if (touch.current.locked) return;
+    touch.current.locked = true;
+    lockScroll(true);
+  };
   const end = () => {
+    if (touch.current.locked) lockScroll(false);
     touch.current.locked = false;
     setActive(null);
   };
+  // Never leave the page locked if the chart goes away mid-scrub.
+  useEffect(() => () => {
+    if (touch.current.locked) lockScroll(false);
+  }, [lockScroll]);
   const handlers = scrub
     ? {
         onStartShouldSetResponder: () => true,
@@ -93,8 +108,10 @@ function RevealChart({
         onResponderMove: (e: GestureResponderEvent) => {
           const dx = Math.abs(e.nativeEvent.pageX - touch.current.x0);
           const dy = Math.abs(e.nativeEvent.pageY - touch.current.y0);
+          const firstMove = !touch.current.moved && (dx > SCRUB_SLOP || dy > SCRUB_SLOP);
           if (dx > SCRUB_SLOP || dy > SCRUB_SLOP) touch.current.moved = true;
-          if (dx > SCRUB_SLOP && dx > dy) touch.current.locked = true;
+          // Scrubbing: a sideways drag, or a touch held still for a moment before moving.
+          if ((dx > SCRUB_SLOP && dx > dy) || (firstMove && Date.now() - touch.current.t0 > HOLD_MS)) lock();
           select(e.nativeEvent.locationX);
         },
         onResponderTerminationRequest: () => !touch.current.locked,

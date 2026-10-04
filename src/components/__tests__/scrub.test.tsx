@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { TrendChart } from '@/components/charts';
+import { ScrollLockContext } from '@/components/scrollLock';
 import { nearestIndex } from '@/lib/charts';
 
 jest.mock('@/lib/haptics', () => ({ selectionTick: jest.fn() }));
@@ -52,14 +53,44 @@ describe('chart scrubbing', () => {
     expect(svgTexts().filter((s) => s.includes('OCT ·'))).toEqual([]);
   });
 
-  it('keeps a sideways drag, but lets a vertical one go to the page', async () => {
-    await render(<TrendChart values={values} labels={labels} />);
+  it('locks the page while scrubbing sideways, but lets a vertical swipe scroll', async () => {
+    const lockScroll = jest.fn();
+    await render(
+      <ScrollLockContext.Provider value={lockScroll}>
+        <TrendChart values={values} labels={labels} />
+      </ScrollLockContext.Provider>,
+    );
     const surface = await chartSurface();
     await fireEvent(surface, 'responderGrant', touch(100, 40));
     await fireEvent(surface, 'responderMove', touch(103, 80));
     expect(screen.getByTestId('chart-surface').props.onResponderTerminationRequest()).toBe(true);
+    expect(lockScroll).not.toHaveBeenCalled();
+
     await fireEvent(surface, 'responderMove', touch(160, 82));
     expect(screen.getByTestId('chart-surface').props.onResponderTerminationRequest()).toBe(false);
+    expect(lockScroll).toHaveBeenLastCalledWith(true);
+
+    await fireEvent(surface, 'responderRelease', touch(160, 82));
+    expect(lockScroll).toHaveBeenLastCalledWith(false);
+    expect(lockScroll).toHaveBeenCalledTimes(2);
+  });
+
+  it('locks the page for a touch held still before moving, in any direction', async () => {
+    const lockScroll = jest.fn();
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    await render(
+      <ScrollLockContext.Provider value={lockScroll}>
+        <TrendChart values={values} labels={labels} />
+      </ScrollLockContext.Provider>,
+    );
+    const surface = await chartSurface();
+    await fireEvent(surface, 'responderGrant', touch(100, 40));
+    now.mockReturnValue(1_400);
+    await fireEvent(surface, 'responderMove', touch(102, 90));
+    expect(lockScroll).toHaveBeenLastCalledWith(true);
+    await fireEvent(surface, 'responderTerminate', touch(102, 90));
+    expect(lockScroll).toHaveBeenLastCalledWith(false);
+    now.mockRestore();
   });
 
   it('treats a quick still tap as a press', async () => {

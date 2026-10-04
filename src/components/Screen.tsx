@@ -16,6 +16,7 @@ import { useColors } from '@/theme/ColorsProvider';
 import { TAB_BAR_CLEARANCE, palette } from '@/theme/tokens';
 import { Glow, glows, type GlowSpec } from './Glow';
 import { RadarMark } from './RadarMark';
+import { ScrollLockContext } from './scrollLock';
 
 interface Props {
   children: ReactNode;
@@ -68,6 +69,8 @@ export function Screen({
   // armed, until onRefresh settles (and at least MIN_SPIN, so a fast fetch doesn't flicker).
   const [armed, setArmed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Set by a gesture that owns the touch for now (scrubbing a chart).
+  const [scrollLocked, setScrollLocked] = useState(false);
   const dragging = useRef(false);
   const armedRef = useRef(false);
   const mounted = useRef(true);
@@ -146,6 +149,7 @@ export function Screen({
           },
           contentStyle,
         ]}
+        scrollEnabled={!scrollLocked}
         alwaysBounceVertical={!!onRefresh}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -177,7 +181,7 @@ export function Screen({
         }
       >
         {customPull && <Animated.View style={{ height: spacer, marginBottom: -gap }} />}
-        {children}
+        <ScrollLockContext.Provider value={setScrollLocked}>{children}</ScrollLockContext.Provider>
       </Animated.ScrollView>
       {overlay}
     </View>
