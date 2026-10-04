@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { lightTap } from '@/lib/haptics';
@@ -7,9 +7,28 @@ import { useAnimatedValue } from '@/lib/useAnimatedValue';
 import { useColors } from '@/theme/ColorsProvider';
 import { palette, radius, shadows } from '@/theme/tokens';
 import { Icon } from './Icon';
-import { Mono, T } from './T';
+import { AnimatedT, Mono, T } from './T';
 
 const EASE_OUT = Easing.bezier(0.2, 0.8, 0.2, 1);
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * 0 → 1 as `selected` flips, over the design's 150 ms ease-out for selectable rows, pills and
+ * segments. Colours can't run on the native driver. It's a fade, not movement, so it stays on
+ * under Reduce Motion.
+ */
+function useSelection(selected: boolean) {
+  const progress = useAnimatedValue(selected ? 1 : 0);
+  useEffect(() => {
+    const fade = Animated.timing(progress, { toValue: selected ? 1 : 0, duration: 150, easing: EASE_OUT, useNativeDriver: false });
+    fade.start();
+    return () => fade.stop();
+  }, [selected, progress]);
+  return progress;
+}
+
+const mix = (progress: Animated.Value, off: string, on: string) => progress.interpolate({ inputRange: [0, 1], outputRange: [off, on] });
 
 /** 42 × 26 switch with a sliding 20 pt knob. */
 export function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -100,21 +119,24 @@ export function ToggleRow({
 /** 18 pt radio: off is a 1.5 pt dim ring, on is filled ember with a check. Decorative. */
 export function Radio({ on, size = 18 }: { on: boolean; size?: number }) {
   const c = useColors();
+  const progress = useSelection(on);
   return (
-    <View
+    <Animated.View
       style={{
         width: size,
         height: size,
         borderRadius: size / 2,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: on ? c.ember : 'transparent',
+        backgroundColor: mix(progress, 'transparent', c.ember),
         borderWidth: 1.5,
-        borderColor: on ? c.ember : c.dim,
+        borderColor: mix(progress, c.dim, c.ember),
       }}
     >
-      {on && <Icon name="check" size={size * 0.66} color={palette.onEmber} strokeWidth={3.5} />}
-    </View>
+      <Animated.View style={{ opacity: progress }}>
+        <Icon name="check" size={size * 0.66} color={palette.onEmber} strokeWidth={3.5} />
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -137,8 +159,9 @@ export function SelectableRow({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+  const progress = useSelection(selected);
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={() => {
         lightTap();
         onPress();
@@ -154,9 +177,9 @@ export function SelectableRow({
           minHeight: 44,
           paddingHorizontal: 12,
           borderRadius: radius.row,
-          backgroundColor: selected ? c.emberSoft : c.card,
+          backgroundColor: mix(progress, c.card, c.emberSoft),
           borderWidth: 1,
-          borderColor: selected ? palette.emberLineStrong : c.line,
+          borderColor: mix(progress, c.line, palette.emberLineStrong),
         },
         style,
       ]}
@@ -167,7 +190,7 @@ export function SelectableRow({
         {label}
       </T>
       {trailing}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -175,16 +198,29 @@ export type SegmentedVariant = 'large' | 'medium' | 'compact' | 'mono';
 
 const segmentStyles: Record<
   SegmentedVariant,
-  { pad: number; outer: number; height?: number; inner: number; font: number; padX: number; padY?: number; gap: number; track: 'card' | 'soft'; selected: 'ink' | 'card2' }
+  {
+    pad: number;
+    outer: number;
+    height?: number;
+    inner: number;
+    font: number;
+    padX: number;
+    padY?: number;
+    gap: number;
+    track: 'card' | 'soft';
+    selected: 'ink' | 'card2';
+    /** Equal-width segments (a `repeat(n, 1fr)` grid in the design) rather than each sized to its label. */
+    equal: boolean;
+  }
 > = {
   // 01 wording
-  large: { pad: 4, outer: 21, height: 34, inner: 17, font: 13, padX: 8, gap: 4, track: 'card', selected: 'ink' },
+  large: { pad: 4, outer: 21, height: 34, inner: 17, font: 13, padX: 8, gap: 4, track: 'card', selected: 'ink', equal: true },
   // 11 wording, 12 rule type
-  medium: { pad: 3, outer: 17, height: 28, inner: 14, font: 12, padX: 8, gap: 3, track: 'soft', selected: 'ink' },
+  medium: { pad: 3, outer: 17, height: 28, inner: 14, font: 12, padX: 8, gap: 3, track: 'soft', selected: 'ink', equal: true },
   // 09 Sectors / Regions
-  compact: { pad: 3, outer: 18, inner: 15, font: 12, padX: 12, padY: 6, gap: 0, track: 'card', selected: 'card2' },
+  compact: { pad: 3, outer: 18, inner: 15, font: 12, padX: 12, padY: 6, gap: 0, track: 'card', selected: 'card2', equal: false },
   // 10 time range
-  mono: { pad: 3, outer: 16, inner: 13, font: 11, padX: 9, padY: 5, gap: 0, track: 'card', selected: 'card2' },
+  mono: { pad: 3, outer: 16, inner: 13, font: 11, padX: 9, padY: 5, gap: 0, track: 'card', selected: 'card2', equal: false },
 };
 
 export function Segmented<V extends string>({
@@ -209,6 +245,15 @@ export function Segmented<V extends string>({
   const c = useColors();
   const s = segmentStyles[variant];
   const h = height ?? s.height;
+
+  // Stretched, flex already makes equal segments. Unstretched (11 wording), each one takes the
+  // widest label's width, measured from bold copies (the widest weight) outside the layout, so a
+  // label turning bold never gets squeezed and the control never shifts when the selection moves.
+  const fit = s.equal && !stretch;
+  const [labelWidths, setLabelWidths] = useState<Record<string, number>>({});
+  const measured = options.map((o) => labelWidths[o.value]);
+  const segmentWidth = fit && measured.every((w) => w !== undefined) ? Math.ceil(Math.max(...measured)) + 2 * s.padX : undefined;
+
   return (
     <View
       accessibilityRole="tablist"
@@ -226,52 +271,112 @@ export function Segmented<V extends string>({
         style,
       ]}
     >
-      {options.map((o) => {
-        const on = o.value === value;
-        const onInk = on && s.selected === 'ink';
-        return (
-          <Pressable
-            key={o.value}
-            onPress={() => {
-              if (!on) lightTap();
-              onChange(o.value);
-            }}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={o.label}
-            hitSlop={{ top: 6, bottom: 6 }}
-            style={{
-              flex: stretch ? 1 : undefined,
-              height: h,
-              paddingHorizontal: s.padX,
-              paddingVertical: s.padY,
-              borderRadius: s.inner,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: on ? (onInk ? c.ink : c.card2) : 'transparent',
-            }}
-          >
+      {fit && (
+        // Wide enough that no label wraps or truncates while it's measured.
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ position: 'absolute', top: 0, left: 0, width: 1000, opacity: 0 }}
+        >
+          {options.map((o) => (
             <T
+              key={o.value}
+              testID={`segment-measure-${o.value}`}
               mono={variant === 'mono'}
               size={s.font}
-              weight={on ? 600 : 400}
-              color={onInk ? c.bg : on ? c.ink : c.mute}
+              weight={600}
               numberOfLines={1}
+              style={{ alignSelf: 'flex-start' }}
+              onLayout={(e) => {
+                const w = e.nativeEvent.layout.width;
+                setLabelWidths((prev) => (prev[o.value] === w ? prev : { ...prev, [o.value]: w }));
+              }}
             >
               {o.label}
             </T>
-          </Pressable>
-        );
-      })}
+          ))}
+        </View>
+      )}
+      {options.map((o) => (
+        <Segment
+          key={o.value}
+          label={o.label}
+          on={o.value === value}
+          variant={variant}
+          stretch={stretch}
+          width={segmentWidth}
+          height={h}
+          onPress={() => {
+            if (o.value !== value) lightTap();
+            onChange(o.value);
+          }}
+        />
+      ))}
     </View>
+  );
+}
+
+function Segment({
+  label,
+  on,
+  variant,
+  stretch,
+  width,
+  height,
+  onPress,
+}: {
+  label: string;
+  on: boolean;
+  variant: SegmentedVariant;
+  stretch: boolean;
+  width?: number;
+  height?: number;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  const s = segmentStyles[variant];
+  const ink = s.selected === 'ink';
+  const progress = useSelection(on);
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={label}
+      hitSlop={{ top: 6, bottom: 6 }}
+      style={{
+        flex: stretch ? 1 : undefined,
+        width,
+        height,
+        paddingHorizontal: s.padX,
+        paddingVertical: s.padY,
+        borderRadius: s.inner,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: mix(progress, 'transparent', ink ? c.ink : c.card2),
+      }}
+    >
+      {/* Weight can't tween, so it switches with the selection while the colour fades. */}
+      <AnimatedT
+        mono={variant === 'mono'}
+        size={s.font}
+        weight={on ? 600 : 400}
+        color={mix(progress, c.mute, ink ? c.bg : c.ink)}
+        numberOfLines={1}
+      >
+        {label}
+      </AnimatedT>
+    </AnimatedPressable>
   );
 }
 
 /** 34 pt multi-select pill (regions, rule targets). */
 export function Pill({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const c = useColors();
+  const progress = useSelection(selected);
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={() => {
         lightTap();
         onPress();
@@ -285,23 +390,25 @@ export function Pill({ label, selected, onPress }: { label: string; selected: bo
         paddingHorizontal: 14,
         borderRadius: 17,
         justifyContent: 'center',
-        backgroundColor: selected ? c.ember : c.card,
+        backgroundColor: mix(progress, c.card, c.ember),
         borderWidth: 1,
-        borderColor: selected ? c.ember : c.line,
+        borderColor: mix(progress, c.line, c.ember),
       }}
     >
-      <T size={13} weight={500} color={selected ? palette.onEmber : c.ink} numberOfLines={1}>
+      <AnimatedT size={13} weight={500} color={mix(progress, c.ink, palette.onEmber)} numberOfLines={1}>
         {label}
-      </T>
-    </Pressable>
+      </AnimatedT>
+    </AnimatedPressable>
   );
 }
 
 /** Feed filter chip with a count. */
 export function Chip({ label, count, selected, onPress }: { label: string; count?: number; selected: boolean; onPress: () => void }) {
   const c = useColors();
+  const progress = useSelection(selected);
+  const text = mix(progress, c.ink, c.bg);
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
@@ -313,18 +420,18 @@ export function Chip({ label, count, selected, onPress }: { label: string; count
         paddingVertical: 7,
         paddingHorizontal: 12,
         borderRadius: 16,
-        backgroundColor: selected ? c.ink : c.card2,
+        backgroundColor: mix(progress, c.card2, c.ink),
       }}
     >
-      <T size={12} weight={selected ? 600 : 400} color={selected ? c.bg : c.ink}>
+      <AnimatedT size={12} weight={selected ? 600 : 400} color={text}>
         {label}
-      </T>
+      </AnimatedT>
       {count !== undefined && (
-        <T mono size={12} color={selected ? c.bg : c.ink} style={{ opacity: 0.6 }}>
+        <AnimatedT mono size={12} color={text} style={{ opacity: 0.6 }}>
           {count}
-        </T>
+        </AnimatedT>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

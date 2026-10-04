@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useColors } from '@/theme/ColorsProvider';
+import { CrossFadeText } from './CrossFadeText';
 import { Icon } from './Icon';
 import { CircleButton } from './layout';
 import { Screen } from './Screen';
@@ -15,10 +16,11 @@ export function SettingsHeader({ eyebrow, title }: { eyebrow?: string; title: st
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 10, paddingHorizontal: 16, paddingBottom: 4 }}>
       <CircleButton icon="chevronLeft" label="Back" strokeWidth={2} onPress={() => router.back()} />
       <View style={{ flexShrink: 1 }}>
+        {/* On 11 the eyebrow names the wording level, so it cross-fades when that changes. */}
         {eyebrow ? (
-          <Mono size={11} color={c.mute}>
+          <CrossFadeText mono size={11} tracking={0.04} color={c.mute}>
             {eyebrow}
-          </Mono>
+          </CrossFadeText>
         ) : null}
         <T size={22} weight={600} tracking={-0.02} accessibilityRole="header">
           {title}
