@@ -91,20 +91,26 @@ Chosen for milestone 1. All are free, small daily or hourly pulls.
 The method has to be simple enough to explain on "How the index works" and stable enough that the
 bands mean something.
 
-**Signals.** For each sub-index there is one daily number, summed over a trailing 7 days:
-- Exploitation: KEV additions, plus the number of CVEs whose EPSS score rose above 0.5.
-- Ransomware: RansomLook posts, plus KEV additions marked as used in ransomware campaigns.
+**Signals.** Each signal is one daily count, totalled over a trailing 7 days. A sub-index has one or
+more signals:
+- Exploitation: KEV additions; CVEs whose EPSS score rose above 0.5.
+- Ransomware: RansomLook posts; KEV additions marked as used in ransomware campaigns.
 - Supply chain: new malicious packages in OSV.
 - Insider/other: HIBP breaches added, each weighted by log(accounts affected), plus VCDB's insider
   share as a slow-moving baseline.
 - DDoS: Cloudflare Radar attack volume.
 - Phishing: newly listed domains in Phishing.Database.
 
-**Scores (0–100).** Each score is today's signal as a percentile of that signal's own last two years.
+**Scores (0–100).** Each signal's 7-day total is ranked as a percentile of that signal's own previous
+two years (a midrank, so ties count half), and a sub-index is the mean of its signals' percentiles.
 So 85 or more (Severe) means "busier than 85% of days in the last two years". This makes very different
-sources comparable and keeps the bands meaningful. Once real history exists, check that the bands
-roughly match the design's intent (Severe should be rare). If not, adjust the mapping without changing
-the bands.
+sources comparable and keeps the bands meaningful. Signals are ranked separately rather than added,
+because their scales differ: about one KEV addition a day against dozens of EPSS crossings, so a sum
+would just be EPSS. A signal needs 28 days of history before it counts, and a gap in it leaves the
+next 7 days unranked. EPSS crossings aren't counted on the day the EPSS model changes (that moves
+every score at once) or when the previous day's file is missing. Once real history exists, check that
+the bands roughly match the design's intent (Severe should be rare). If not, adjust the mapping
+without changing the bands.
 
 **Index.** The weighted mean of the available sub-index scores (decision 3). The 24-hour and 7-day
 changes are plain differences. The "90% CI" figure is the 90% spread of the index's day-to-day noise
@@ -158,7 +164,7 @@ score. The app labels these views "modelled estimate" until real sector or regio
 ```
 pg_cron (Supabase Cron) ──► ingest-* edge functions ──► raw tables (private)
                                                              │
-pg_cron hourly ──► compute_index() SQL ──► signals / scores / index / events tables (private)
+render-snapshot ──► compute_scores() SQL ──► signals / scores / index / events tables (private)
                                                              │
 pg_cron hourly ──► render-snapshot edge function ──► snapshot/v1/latest.json in a public Storage bucket
                                                              │                (Cache-Control 300)
@@ -181,8 +187,9 @@ App ──► fetch latest.json (fall back to the RPC) ──► existing Snapsh
   - If a feed regularly gets near the CPU limit, move that one to a GitHub Actions job.
 - **Storage budget (500 MB database).**
   - Store aggregates, not raw feeds.
-  - EPSS is about 250k rows per day, so only keep CVEs that are on KEV or above 0.1, plus daily summary
-    figures.
+  - EPSS is about 380k rows per day, so only the latest scores of CVEs that are on KEV or above 0.1
+    are kept (about 17k rows, replaced daily), plus daily summary figures. Parsing the whole file
+    takes about 250 ms.
   - RansomLook is stored as group/day counts only.
   - Raw rows are pruned after 30 days.
   - A `source_runs` table records every run, and the database size is checked from it.

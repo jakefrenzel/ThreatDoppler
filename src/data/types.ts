@@ -140,3 +140,18 @@ export interface Snapshot {
   threats: Record<string, ThreatDetail>;
   deliveries: Delivery[];
 }
+
+/**
+ * The file the backend publishes (snapshot/v1/latest.json), also returned by get_snapshot().
+ * Written by supabase/functions/render-snapshot.
+ */
+export interface SnapshotFile {
+  /** Bumped when the file changes in a way older app builds can't read. */
+  schemaVersion: number;
+  generatedAt: string; // ISO
+  /** True while some Snapshot fields aren't computed yet. */
+  partial: boolean;
+  /** When each source last ran successfully (ISO), or null if it never has. */
+  sources: Record<string, string | null>;
+  snapshot: Partial<Snapshot>;
+}
