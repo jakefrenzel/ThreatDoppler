@@ -17,6 +17,9 @@ import { palette } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+// Catches render errors from every route, so one broken screen doesn't take down the app.
+export { ErrorScreen as ErrorBoundary } from '@/components/ErrorScreen';
+
 const navTheme = {
   ...DarkTheme,
   colors: { ...DarkTheme.colors, background: palette.bg, card: palette.bg, primary: palette.ember, text: palette.ink, border: palette.line },
