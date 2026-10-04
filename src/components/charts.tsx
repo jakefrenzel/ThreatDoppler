@@ -19,6 +19,8 @@ const MONO_BOLD = fonts.mono[600];
 const EASE_OUT = Easing.bezier(0.2, 0.8, 0.2, 1);
 /** Room above and below the plot so dots on the top edge aren't clipped by the reveal. */
 const BLEED = 8;
+/** Height of the pill labels on charts (peak callout, scrub readout). */
+const CALLOUT_H = 18;
 
 /** Points that can be scrubbed: positions in the chart's viewBox, values and what each covers. */
 interface Scrub {
@@ -146,7 +148,7 @@ function RevealChart({
       <>
         <Line x1={point[0]} y1={0} x2={point[0]} y2={plotH} stroke={c.ink} strokeOpacity={0.6} strokeWidth={1} />
         <Circle cx={point[0]} cy={point[1]} r={5} fill={c.ink} stroke={palette.ember} strokeWidth={2} />
-        <Rect x={pillX} y={0} width={pillW} height={18} rx={9} fill={c.ink} />
+        <Rect x={pillX} y={0} width={pillW} height={CALLOUT_H} rx={9} fill={c.ink} />
         <SvgText x={pillX + 8} y={12.5} fontFamily={MONO_BOLD} fontSize={10} fontWeight="600" fill={palette.onEmber}>
           {text}
         </SvgText>
@@ -260,8 +262,14 @@ export function HistoryChart({
   const [px, py] = chart.points[peak.index] ?? chart.points[0];
   const [ex, ey] = chart.points[chart.points.length - 1];
   const calloutW = Math.max(56, peak.label.length * 6.2 + 12);
-  // Keep the callout inside the plot when the peak is near the right edge.
-  const calloutX = px + 10 + calloutW > 340 ? px - 10 - calloutW : px + 10;
+  // The callout sits centred above the peak (kept inside the plot), with a stem down to the dot.
+  // A peak right at the top has no room under the pill, so then it sits beside the dot instead.
+  const above = py > CALLOUT_H + 8;
+  const calloutX = above
+    ? Math.min(Math.max(px - calloutW / 2, 0), 322 - calloutW)
+    : px + 10 + calloutW > 340
+      ? px - 10 - calloutW
+      : px + 10;
   return (
     <RevealChart
       width={346}
@@ -311,7 +319,8 @@ export function HistoryChart({
           {/* The scrub readout takes the callout's place while a finger is on the chart. */}
           {scrubbing === null && (
             <>
-              <Rect x={calloutX} y={0} width={calloutW} height={18} rx={9} fill={bandColor.b5} />
+              {above && <Line x1={px} y1={CALLOUT_H} x2={px} y2={py - 5} stroke={bandColor.b5} strokeWidth={1} />}
+              <Rect x={calloutX} y={0} width={calloutW} height={CALLOUT_H} rx={9} fill={bandColor.b5} />
               <SvgText x={calloutX + 8} y={12.5} fontFamily={MONO_BOLD} fontSize={10} fontWeight="600" fill="#fff">
                 {peak.label}
               </SvgText>
