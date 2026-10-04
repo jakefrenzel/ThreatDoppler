@@ -21,9 +21,11 @@ monetised later, and a method honest enough to explain on the About screens.
 
 1. **Non-commercial data (DDoS and phishing): use Cloudflare Radar while the app is free.** There is
    no free, commercially licensed DDoS source, and phishing is nearly as bad (see Sources). Radar
-   (CC BY-NC 4.0) covers DDoS, with credit, while the app has no ads, purchases or subscriptions. The
-   MIT-licensed Phishing.Database is a low-confidence phishing signal. Email Cloudflare for an exception
-   now, and in any case before monetising (see "Before monetising" below).
+   (CC BY-NC 4.0) covers DDoS, with credit, while the app has no ads, purchases or subscriptions.
+   Email Cloudflare for an exception now, and in any case before monetising (see "Before monetising"
+   below).
+   *Changed 2026-10-04:* phishing also comes from Radar (its email security series), not
+   Phishing.Database (see Rejected).
 2. **Ask ransomware.live for written permission.** It is the only free source with a sector and
    country for each ransomware victim. Its terms are stricter than "non-commercial": the free API is
    personal-use only, and re-serving its data is banned, so even a free public app needs written
@@ -46,13 +48,13 @@ sponsorship or business promotion does. Go through this list **before** that shi
 can't cover data already served.
 
 - [ ] **Cloudflare Radar (CC BY-NC 4.0):** written permission for commercial use, or remove the Radar
-      ingestion. Without Radar, DDoS shows "No data yet" and its weight is spread over the others, and
+      ingestion. Without Radar, DDoS and phishing show "No data yet" and their weight is spread over the others, and
       Radar-based sector/region adjustments fall back to the VCDB baselines.
 - [ ] **ransomware.live** (if it's in use by then): check that the written approval covers commercial
       use, not just a free app.
 - [ ] **Every other source:** re-read its current terms (they change; abuse.ch did). Confirm each still
       allows commercial use and that the credits screen matches what each one requires. Sources: KEV,
-      EPSS, RansomLook, OSV, HIBP, VCDB, Phishing.Database.
+      EPSS, RansomLook, OSV, HIBP, VCDB.
 - [ ] **VCDB (CC BY-SA 4.0):** if any VCDB-derived data is redistributed (for example published
       baselines or an export), it must carry CC BY-SA.
 - [ ] **No new non-commercial sources** have been added since this list was written. Search the
@@ -73,12 +75,14 @@ Chosen for milestone 1. All are free, small daily or hourly pulls.
 | OpenSSF malicious-packages / OSV (`MAL-` ids) | Supply chain | Apache-2.0 | Full history | Most active free supply-chain signal |
 | Have I Been Pwned breaches | Insider/other; breach events | CC BY 4.0, visible link to haveibeenpwned.com wherever shown | 2013 onwards | No key needed for the breach list, but a user-agent is required |
 | VERIS Community DB (VCDB) | Insider share; sector and country baselines | CC BY-SA 4.0 | 2013 onwards | Lags and is irregular, so it's used for baselines, not live movement. ShareAlike applies to derived data we redistribute |
-| Cloudflare Radar | DDoS (layer 3/7), sector and region of attacks | CC BY-NC 4.0: credit required, non-commercial only (see "Before monetising") | Up to 1 year per request | Free API token. 1,200 requests per 5 minutes |
-| Phishing.Database | Phishing (low confidence) | MIT | Rolling | Count of newly listed phishing domains. Provenance unclear, so it's labelled low confidence |
+| Cloudflare Radar | DDoS (layer 3/7); phishing (email security); sector and region of attacks | CC BY-NC 4.0: credit required, non-commercial only (see "Before monetising") | Daily values for up to about 91 days per request, so longer ranges are fetched in windows | Free API token. Rate-limits bursts (429), so requests are spaced out. Attack series only come normalised (MIN0_MAX, a pure scale); email series are real percentages |
 
 **Rejected:**
 - **abuse.ch** (URLhaus, ThreatFox, MalwareBazaar): needs a key, and free use is now not-for-profit only.
 - **OpenPhish Community:** no commercial use and no display to third parties.
+- **Phishing.Database** (dropped 2026-10-04): only 10–60 new domains a day, git history only from Dec
+  2024, "new today" files frozen since Dec 2025, and multi-week gaps when the maintainer is away, which
+  would read as quiet periods.
 - **PhishTank:** new registrations are closed.
 - **AlienVault OTX:** non-commercial only.
 - **GreyNoise Community:** too few lookups to be useful.
@@ -96,10 +100,13 @@ more signals:
 - Exploitation: KEV additions; CVEs whose EPSS score rose above 0.5.
 - Ransomware: RansomLook posts; KEV additions marked as used in ransomware campaigns.
 - Supply chain: new malicious packages in OSV.
-- Insider/other: HIBP breaches added, each weighted by log(accounts affected), plus VCDB's insider
-  share as a slow-moving baseline.
-- DDoS: Cloudflare Radar attack volume.
-- Phishing: newly listed domains in Phishing.Database.
+- Insider/other: HIBP breaches added, each weighted by ln(1 + accounts affected). Spam lists,
+  fabricated, retired, malware and stealer-log entries don't count. (VCDB's insider share was meant as a
+  baseline here, but VCDB has almost no incidents after 2021, so it's only used for sector and region
+  baselines in step 6.)
+- DDoS: Cloudflare Radar layer 3/4 and layer 7 attack volume.
+- Phishing: the share of all email Cloudflare Radar flags as malicious, and the share that's malicious
+  and harvests credentials.
 
 **Scores (0–100).** Each signal's 7-day total is ranked as a percentile of that signal's own previous
 two years (a midrank, so ties count half), and a sub-index is the mean of its signals' percentiles.
@@ -259,7 +266,7 @@ App ──► fetch latest.json (fall back to the RPC) ──► existing Snapsh
   - Keep the sample data behind a flag for development and tests.
 - Env vars: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - **About → Data sources:** replace the "Sample data" card with the real sources and their required
-  attributions (EPSS, RansomLook, OSV, HIBP, VCDB, Cloudflare). This is a licence requirement,
+  attributions (KEV, EPSS, RansomLook, OSV, HIBP, VCDB, Cloudflare Radar). This is a licence requirement,
   not optional.
 - **About → How the index works:** describe the method above, including "sector and region views are
   modelled estimates".
@@ -279,7 +286,7 @@ Each step ends with something checkable.
 3. **Exploitation end to end:** KEV and EPSS ingestion, scores, index, `render-snapshot` with only
    that sub-index, and the app reading it behind a dev flag. *Check:* the app shows a real exploitation
    score.
-4. **Remaining sources:** RansomLook, OSV, HIBP, VCDB, Radar/Phishing.Database (decision 1).
+4. **Remaining sources:** RansomLook, OSV, HIBP, Radar for DDoS and phishing (decision 1). VCDB moves to step 6.
    *Check:* all sub-indices have scores, and `source_runs` is clean for 48 hours.
 5. **Backfill and history:** the backfill workflow, then history ranges, peaks and band calibration.
    *Check:* the 5-year chart looks plausible, and Severe is rare.

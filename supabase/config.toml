@@ -428,6 +428,30 @@ verify_jwt = false
 import_map = "./functions/ingest-epss/deno.json"
 entrypoint = "./functions/ingest-epss/index.ts"
 
+[functions.ingest-ransomlook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/ingest-ransomlook/deno.json"
+entrypoint = "./functions/ingest-ransomlook/index.ts"
+
+[functions.ingest-osv]
+enabled = true
+verify_jwt = false
+import_map = "./functions/ingest-osv/deno.json"
+entrypoint = "./functions/ingest-osv/index.ts"
+
+[functions.ingest-hibp]
+enabled = true
+verify_jwt = false
+import_map = "./functions/ingest-hibp/deno.json"
+entrypoint = "./functions/ingest-hibp/index.ts"
+
+[functions.ingest-radar]
+enabled = true
+verify_jwt = false
+import_map = "./functions/ingest-radar/deno.json"
+entrypoint = "./functions/ingest-radar/index.ts"
+
 [functions.render-snapshot]
 enabled = true
 verify_jwt = false

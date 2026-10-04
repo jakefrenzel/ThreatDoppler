@@ -11,7 +11,7 @@ import { check, runInBackground } from "../_shared/runs.ts";
 const SCHEMA_VERSION = 1;
 /** Version of the method in docs/backend-plan.md, shown in the app as "MODEL x". */
 const MODEL = "0.1";
-const SOURCES = ["kev", "epss"];
+const SOURCES = ["kev", "epss", "ransomlook", "osv", "hibp", "radar"];
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -48,17 +48,21 @@ async function render(admin: SupabaseClient): Promise<number> {
     ci: noise(values.slice(-118)),
   };
 
+  // Same rule as compute_index(): each sub-index shows its latest score from the last 2 days, and
+  // its 24-hour change is against the day before that score.
+  const shiftDay = (day: string, by: number) => new Date(Date.parse(day) + by * 86_400_000).toISOString().slice(0, 10);
   const [weights, scores] = await Promise.all([
     admin.from("vectors").select("id, weight"),
-    admin.from("scores_daily").select("vector, day, score").gte("day", days[Math.max(0, days.length - 2)].day),
+    admin.from("scores_daily").select("vector, day, score").gte("day", shiftDay(today, -3))
+      .order("day", { ascending: false }),
   ]);
   const vectors: VectorScore[] = [];
   const scoreRows = check(scores, "read scores_daily") ?? [];
   for (const w of check(weights, "read vectors") ?? []) {
     const rows = scoreRows.filter((s) => s.vector === w.id);
-    const now = rows.find((s) => s.day === today);
+    const now = rows.find((s) => s.day >= shiftDay(today, -2));
     if (!now) continue;
-    const before = rows.find((s) => s.day !== today);
+    const before = rows.find((s) => s.day === shiftDay(now.day, -1));
     vectors.push({
       id: w.id as VectorId,
       weight: Number(w.weight),
