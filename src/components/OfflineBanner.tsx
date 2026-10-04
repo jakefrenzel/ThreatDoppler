@@ -8,11 +8,12 @@ import { Banner } from './states';
  * at 55% opacity. 13b covers being offline; a service problem uses the same layout.
  */
 export function StatusBanner() {
-  const { data, status, refresh } = useSnapshot();
+  const { data, status, refresh, retrying } = useSnapshot();
   if (status !== 'offline' && status !== 'error') return null;
   const saved = data ? `Showing saved data from ${utcTime(data.updatedAt)} UTC.` : '';
   const body = data ? `SHOWING SAVED DATA FROM ${utcTime(data.updatedAt)} UTC` : 'NO SAVED DATA YET';
-  const action = <GhostPill ink label="Retry" onPress={refresh} />;
+  // While retrying, the banner and its text stay exactly as they are; only the button dims.
+  const action = <GhostPill ink label="Retry" onPress={refresh} busy={retrying} />;
   return status === 'offline' ? (
     <Banner icon="wifiOff" title="You're offline" body={body} announce={`You're offline. ${saved}`} action={action} />
   ) : (

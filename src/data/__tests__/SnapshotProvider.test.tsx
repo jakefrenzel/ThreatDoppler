@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
+import { useEffect } from 'react';
 import { Text } from 'react-native';
 
 import { fetchSnapshot } from '@/data/api';
@@ -112,6 +113,41 @@ describe('SnapshotProvider', () => {
     jest.mocked(fetchSnapshot).mockRejectedValue(new SnapshotError('offline', 'Network request failed'));
     await renderProvider();
     await screen.findByText('offline none');
+  });
+
+  it('keeps the offline state through a retry that fails, so nothing on screen moves', async () => {
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(sampleSnapshot));
+    jest.mocked(fetchSnapshot).mockRejectedValue(new SnapshotError('offline', 'Network request failed'));
+    const seen: string[] = [];
+    const handle = { refresh: async () => {} };
+    function Recorder() {
+      const ctx = useSnapshot();
+      useEffect(() => {
+        handle.refresh = ctx.refresh;
+      });
+      seen.push(`${ctx.status}${ctx.retrying ? '+retrying' : ''}`);
+      return null;
+    }
+    await render(
+      <SnapshotProvider>
+        <Recorder />
+      </SnapshotProvider>,
+    );
+    await waitFor(() => expect(seen.at(-1)).toBe('offline'));
+    seen.length = 0;
+
+    let retry: Promise<void> = Promise.resolve();
+    await act(() => {
+      retry = handle.refresh();
+    });
+    await waitFor(() => expect(seen).toContain('offline+retrying'));
+    await act(() => retry);
+    await waitFor(() => expect(seen.at(-1)).toBe('offline'));
+    expect(seen.every((s) => s.startsWith('offline'))).toBe(true);
+
+    jest.mocked(fetchSnapshot).mockResolvedValue(sampleSnapshot);
+    await act(() => handle.refresh());
+    expect(seen.at(-1)).toBe('ready');
   });
 
   it('ignores a saved snapshot that fails the shape check', async () => {

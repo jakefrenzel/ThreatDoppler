@@ -13,12 +13,17 @@ const CACHE_KEY = `td.snapshot.v2.${dataSource()}`;
 /** offline: no connection. error: connected, but the service failed or sent data this build can't use. */
 export type SnapshotStatus = 'loading' | 'ready' | 'refreshing' | 'offline' | 'error';
 
+/** How long a failed retry shows as busy at least. */
+const MIN_RETRY_MS = 600;
+
 interface SnapshotContextValue {
   data: Snapshot | null;
   status: SnapshotStatus;
   /** True once the first fetch (or cache read) has settled, whatever the outcome. */
   settled: boolean;
   refresh: () => Promise<void>;
+  /** A retry is running after a failure; status stays offline or error meanwhile. */
+  retrying: boolean;
 }
 
 const SnapshotContext = createContext<SnapshotContextValue | null>(null);
@@ -36,12 +41,19 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
     statusRef.current = status;
   }, [status]);
 
+  // A retry after a failure keeps the offline/error status (so banners and dimmed content stay
+  // put) and only sets this, until it succeeds or fails again.
+  const [retrying, setRetrying] = useState(false);
+
   // Calls made while a load is running (Retry, pull to refresh, reconnecting) share it.
   const inFlight = useRef<Promise<void> | null>(null);
   const load = useCallback(() => {
     if (inFlight.current) return inFlight.current;
     const run = (async () => {
-      setStatus(dataRef.current ? 'refreshing' : 'loading');
+      const retry = statusRef.current === 'offline' || statusRef.current === 'error';
+      const started = Date.now();
+      if (retry) setRetrying(true);
+      else setStatus(dataRef.current ? 'refreshing' : 'loading');
       try {
         const net = await NetInfo.fetch();
         if (net.isConnected === false) throw new Error('offline');
@@ -50,8 +62,11 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
         setStatus('ready');
         AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
       } catch (e) {
+        // A retry that fails at once still shows as busy briefly, so Retry visibly did something.
+        if (retry) await new Promise((r) => setTimeout(r, Math.max(0, MIN_RETRY_MS - (Date.now() - started))));
         setStatus(e instanceof SnapshotError && e.kind === 'service' ? 'error' : 'offline');
       } finally {
+        setRetrying(false);
         setSettled(true);
         inFlight.current = null;
       }
@@ -88,7 +103,7 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
     };
   }, [load]);
 
-  const value = useMemo(() => ({ data, status, settled, refresh: load }), [data, status, settled, load]);
+  const value = useMemo(() => ({ data, status, settled, refresh: load, retrying }), [data, status, settled, load, retrying]);
   return <SnapshotContext.Provider value={value}>{children}</SnapshotContext.Provider>;
 }
 

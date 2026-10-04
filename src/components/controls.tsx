@@ -639,20 +639,33 @@ export function EmberPill({
 }
 
 /** Neutral pill button (Retry, Show all). */
-export function GhostPill({ label, onPress, ink }: { label: string; onPress: () => void; ink?: boolean }) {
+export function GhostPill({
+  label,
+  onPress,
+  ink,
+  busy,
+}: {
+  label: string;
+  onPress: () => void;
+  ink?: boolean;
+  /** Working on it: dimmed and not pressable, with the same label so nothing around it moves. */
+  busy?: boolean;
+}) {
   const c = useColors();
   return (
     <Pressable
       onPress={onPress}
+      disabled={busy}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ busy: !!busy, disabled: !!busy }}
       hitSlop={{ top: 6, bottom: 6 }}
       style={({ pressed }) => ({
         paddingVertical: ink ? 8 : 10,
         paddingHorizontal: ink ? 14 : 18,
         borderRadius: ink ? 16 : 20,
         backgroundColor: ink ? c.ink : c.card2,
-        opacity: pressed ? 0.75 : 1,
+        opacity: busy ? 0.45 : pressed ? 0.75 : 1,
       })}
     >
       <T size={13} weight={600} color={ink ? c.bg : c.ink}>
