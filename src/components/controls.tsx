@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Animated, Easing, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Easing, Pressable, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 
 import { lightTap } from '@/lib/haptics';
 import { useReduceMotion } from '@/lib/a11y';
@@ -13,6 +13,9 @@ const EASE_OUT = Easing.bezier(0.2, 0.8, 0.2, 1);
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+/** The segmented highlight's slide, matching the tab bar. */
+const SLIDE_MS = 200;
+
 /**
  * 0 → 1 as `selected` flips, over the design's 150 ms ease-out for selectable rows, pills and
  * segments. Colours can't run on the native driver. It's a fade, not movement, so it stays on
@@ -20,7 +23,11 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
  */
 function useSelection(selected: boolean) {
   const progress = useAnimatedValue(selected ? 1 : 0);
+  // Only a change fades; on mount the value already matches, so there's nothing to run.
+  const last = useRef(selected);
   useEffect(() => {
+    if (last.current === selected) return;
+    last.current = selected;
     const fade = Animated.timing(progress, { toValue: selected ? 1 : 0, duration: 150, easing: EASE_OUT, useNativeDriver: false });
     fade.start();
     return () => fade.stop();
@@ -243,16 +250,73 @@ export function Segmented<V extends string>({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+  const reduceMotion = useReduceMotion();
   const s = segmentStyles[variant];
   const h = height ?? s.height;
+  const ink = s.selected === 'ink';
 
-  // Stretched, flex already makes equal segments. Unstretched (11 wording), each one takes the
-  // widest label's width, measured from bold copies (the widest weight) outside the layout, so a
-  // label turning bold never gets squeezed and the control never shifts when the selection moves.
-  const fit = s.equal && !stretch;
+  // Stretched, flex already makes equal segments. Unstretched, segment widths come from bold copies
+  // of the labels (the widest weight) measured outside the layout: equal controls (11 wording) give
+  // every segment the widest label, label-sized ones (09, 10) give each its own. Either way a label
+  // turning bold is never squeezed and widths don't change with the selection, so the highlight
+  // has a fixed place to slide to.
+  const measureLabels = !stretch;
   const [labelWidths, setLabelWidths] = useState<Record<string, number>>({});
   const measured = options.map((o) => labelWidths[o.value]);
-  const segmentWidth = fit && measured.every((w) => w !== undefined) ? Math.ceil(Math.max(...measured)) + 2 * s.padX : undefined;
+  const allMeasured = measureLabels && measured.every((w) => w !== undefined);
+  const widest = allMeasured ? Math.max(...measured) : 0;
+  const widthOf = (key: string) => (allMeasured ? Math.ceil(s.equal ? widest : labelWidths[key]) + 2 * s.padX : undefined);
+
+  // The highlight slides to the selected segment, as on the tab bar. Under Reduce Motion each
+  // segment fades its own highlight instead.
+  const [layouts, setLayouts] = useState<Record<string, { x: number; width: number }>>({});
+  const sliding = !reduceMotion && options.every((o) => layouts[o.value] !== undefined);
+  const slideX = useAnimatedValue(0);
+  const slideW = useAnimatedValue(0);
+  const placed = useRef(false);
+  const lastValue = useRef(value);
+  const targetX = layouts[value]?.x;
+  const targetW = layouts[value]?.width;
+  // A layout effect, so the highlight is in place before the first frame it's drawn.
+  useLayoutEffect(() => {
+    const selectionChanged = lastValue.current !== value;
+    lastValue.current = value;
+    if (!sliding || targetX === undefined || targetW === undefined) {
+      placed.current = false;
+      return;
+    }
+    // Only a new selection slides. Layout changes (Settings applying equal widths as it opens, a
+    // text size change) just move the highlight into place.
+    if (!placed.current || !selectionChanged) {
+      placed.current = true;
+      slideX.setValue(targetX);
+      slideW.setValue(targetW);
+      return;
+    }
+    // JS driver: each label's colour is read off the highlight's position below, and colour can't
+    // run on the native driver. The slides are short and these screens are light.
+    const move = Animated.parallel([
+      Animated.timing(slideX, { toValue: targetX, duration: SLIDE_MS, easing: EASE_OUT, useNativeDriver: false }),
+      Animated.timing(slideW, { toValue: targetW, duration: SLIDE_MS, easing: EASE_OUT, useNativeDriver: false }),
+    ]);
+    move.start();
+    return () => move.stop();
+  }, [sliding, value, targetX, targetW, slideX, slideW]);
+
+  // A label is fully "on" with the highlight over it and fully "off" once the highlight reaches a
+  // neighbour, so dark text on the ink highlight only ever shows where the highlight is.
+  const labelColour = (index: number) => {
+    const at = (i: number) => layouts[options[i].value];
+    const self = at(index);
+    if (!sliding || !self) return undefined;
+    const prevX = index > 0 ? at(index - 1).x : self.x - self.width;
+    const nextX = index < options.length - 1 ? at(index + 1).x : self.x + self.width;
+    return slideX.interpolate({
+      inputRange: [prevX, self.x, nextX],
+      outputRange: [c.mute, ink ? c.bg : c.ink, c.mute],
+      extrapolate: 'clamp',
+    });
+  };
 
   return (
     <View
@@ -260,8 +324,6 @@ export function Segmented<V extends string>({
       accessibilityLabel={label}
       style={[
         {
-          flexDirection: 'row',
-          gap: s.gap,
           padding: s.pad,
           borderRadius: s.outer,
           backgroundColor: s.track === 'card' ? c.card : palette.segmentTrack,
@@ -271,7 +333,7 @@ export function Segmented<V extends string>({
         style,
       ]}
     >
-      {fit && (
+      {measureLabels && (
         // Wide enough that no label wraps or truncates while it's measured.
         <View
           pointerEvents="none"
@@ -298,21 +360,46 @@ export function Segmented<V extends string>({
           ))}
         </View>
       )}
-      {options.map((o) => (
-        <Segment
-          key={o.value}
-          label={o.label}
-          on={o.value === value}
-          variant={variant}
-          stretch={stretch}
-          width={segmentWidth}
-          height={h}
-          onPress={() => {
-            if (o.value !== value) lightTap();
-            onChange(o.value);
-          }}
-        />
-      ))}
+      {/* No padding or border here, so the highlight and the segments' measured x share one origin. */}
+      <View style={{ flexDirection: 'row', gap: s.gap }}>
+        {sliding && (
+          <Animated.View
+            testID="segment-highlight"
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: slideW,
+              borderRadius: s.inner,
+              backgroundColor: ink ? c.ink : c.card2,
+              transform: [{ translateX: slideX }],
+            }}
+          />
+        )}
+        {options.map((o, i) => (
+          <Segment
+            key={o.value}
+            label={o.label}
+            on={o.value === value}
+            variant={variant}
+            stretch={stretch}
+            width={widthOf(o.value)}
+            height={h}
+            fill={!sliding}
+            colour={labelColour(i)}
+            onLayout={(e) => {
+              const { x, width } = e.nativeEvent.layout;
+              setLayouts((prev) => (prev[o.value]?.x === x && prev[o.value]?.width === width ? prev : { ...prev, [o.value]: { x, width } }));
+            }}
+            onPress={() => {
+              if (o.value !== value) lightTap();
+              onChange(o.value);
+            }}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -324,6 +411,9 @@ function Segment({
   stretch,
   width,
   height,
+  fill,
+  colour,
+  onLayout,
   onPress,
 }: {
   label: string;
@@ -332,6 +422,11 @@ function Segment({
   stretch: boolean;
   width?: number;
   height?: number;
+  /** Draw this segment's own highlight (Reduce Motion, or before the sliding one is placed). */
+  fill: boolean;
+  /** Label colour driven by the sliding highlight; otherwise it fades with the selection. */
+  colour?: Animated.AnimatedInterpolation<string>;
+  onLayout: (e: LayoutChangeEvent) => void;
   onPress: () => void;
 }) {
   const c = useColors();
@@ -341,6 +436,7 @@ function Segment({
   return (
     <AnimatedPressable
       onPress={onPress}
+      onLayout={onLayout}
       accessibilityRole="tab"
       accessibilityState={{ selected: on }}
       accessibilityLabel={label}
@@ -354,15 +450,15 @@ function Segment({
         borderRadius: s.inner,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: mix(progress, 'transparent', ink ? c.ink : c.card2),
+        backgroundColor: fill ? mix(progress, 'transparent', ink ? c.ink : c.card2) : 'transparent',
       }}
     >
-      {/* Weight can't tween, so it switches with the selection while the colour fades. */}
+      {/* Weight can't tween, so it switches with the selection while the colour changes. */}
       <AnimatedT
         mono={variant === 'mono'}
         size={s.font}
         weight={on ? 600 : 400}
-        color={mix(progress, c.mute, ink ? c.bg : c.ink)}
+        color={colour ?? mix(progress, c.mute, ink ? c.bg : c.ink)}
         numberOfLines={1}
       >
         {label}
