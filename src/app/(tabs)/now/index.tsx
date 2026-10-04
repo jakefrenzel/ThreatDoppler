@@ -208,7 +208,7 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
           {data.events.slice(0, 2).map((e) => (
             <Pressable
               key={e.id}
-              onPress={() => router.push(`/threat/${e.id}`)}
+              onPress={() => router.push({ pathname: '/threat/[id]', params: { id: e.id } })}
               accessibilityRole="button"
               accessibilityLabel={`${e.time}, ${copy.event(e.headline)}, impact ${signed(e.impact)}`}
               style={{ flexDirection: 'row', gap: 8 }}

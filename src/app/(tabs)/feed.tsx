@@ -160,7 +160,7 @@ export default function Feed() {
             return (
               <Pressable
                 key={e.id}
-                onPress={() => router.push(`/threat/${e.id}`)}
+                onPress={() => router.push({ pathname: '/threat/[id]', params: { id: e.id } })}
                 accessibilityRole="button"
                 accessibilityLabel={`${e.time}, ${type.chip}, ${title}, ${e.source}, impact ${signed(e.impact)}`}
                 style={({ pressed }) => ({

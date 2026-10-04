@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { usePrefs } from '@/state/store';
 
@@ -11,7 +11,7 @@ export function useOnboardingNav() {
   const isRedo = redo === '1';
 
   const next = (path: '/onboarding/scope' | '/onboarding/alerts' | '/onboarding/notifications') =>
-    router.push((isRedo ? `${path}?redo=1` : path) as Href);
+    router.push({ pathname: path, params: isRedo ? { redo: '1' } : {} });
 
   const leave = () => {
     if (isRedo) router.dismissTo('/now');
