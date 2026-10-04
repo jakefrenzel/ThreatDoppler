@@ -47,6 +47,9 @@
           "color": "#FF6B35"
         }
       ]
-    ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
