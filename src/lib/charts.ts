@@ -24,6 +24,15 @@ export function trendDomain(values: number[]): [number, number] {
   return [lo, hi];
 }
 
+/** The point whose x is nearest to `x` (points in x order). */
+export function nearestIndex(points: [number, number][], x: number): number {
+  let best = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (Math.abs(points[i][0] - x) < Math.abs(points[best][0] - x)) best = i;
+  }
+  return best;
+}
+
 /** Trailing moving average over `window` points. */
 export function movingAverage(values: number[], window: number): number[] {
   return values.map((_, i) => {

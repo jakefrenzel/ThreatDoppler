@@ -39,7 +39,10 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
   const { index } = data;
   const band = bandFor(index.value);
   const mine = showMyIndex ? personalIndex(data, sectors) : null;
-  const trend = data.history.find((h) => h.key === '30D')!.stats;
+  const range30 = data.history.find((h) => h.key === '30D')!;
+  const trend = range30.stats;
+  // The 30-day range covers the same days as trend30; its dates label the chart while scrubbing.
+  const trendLabels = range30.pointLabels?.length === data.trend30.length ? range30.pointLabels : undefined;
   const deltaColor = (d: number) => (d > 0 ? c.ember : d < 0 ? c.b1 : c.ink);
 
   // Warning haptic when the index crosses into a new band while the app is open.
@@ -114,7 +117,7 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
         <Pressable onPress={() => router.push('/now/history')} accessibilityRole="button" accessibilityLabel={trendSpoken} accessibilityHint="Opens history">
           <Card padding={[12, 14, 10]}>
             <CardHeader left={L.trendTitle} right={L.trendStats(trend.low, trend.high, trend.sd)} style={{ marginBottom: 8 }} />
-            <TrendChart values={data.trend30} />
+            <TrendChart values={data.trend30} labels={trendLabels} onPress={() => router.push('/now/history')} />
           </Card>
         </Pressable>
 

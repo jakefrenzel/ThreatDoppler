@@ -54,6 +54,7 @@ const detail = shape({
 const history = shape({
   key: oneOf({ '30D': 1, '90D': 1, '1Y': 1, '5Y': 1 }),
   series: arrayOf(num, 1),
+  pointLabels: (v) => v === undefined || arrayOf(str)(v),
   unit: worded,
   axis: arrayOf(shape({ at: num, label: str })),
   peak: shape({ index: num, value: num, label: str }),

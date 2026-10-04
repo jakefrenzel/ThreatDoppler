@@ -77,7 +77,7 @@ export default function History() {
                 h.series[h.series.length - 1],
               )}, peak ${h.peak.label.replace(' · ', ' on ')}`}
             >
-              <HistoryChart values={h.series} peak={h.peak} axis={h.axis} />
+              <HistoryChart values={h.series} labels={h.pointLabels} peak={h.peak} axis={h.axis} />
             </View>
           </Card>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginHorizontal: 14 }}>

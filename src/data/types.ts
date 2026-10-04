@@ -97,6 +97,8 @@ export interface ThreatDetail {
 export interface HistoryRange {
   key: '30D' | '90D' | '1Y' | '5Y';
   series: number[];
+  /** What each point in `series` covers, e.g. "03 OCT", "WK OF 29 SEP", "SEP 2026". Shown while scrubbing. */
+  pointLabels?: string[];
   /** Points per period label, e.g. weekly for 1Y. */
   unit: Worded;
   axis: { at: number; label: string }[];

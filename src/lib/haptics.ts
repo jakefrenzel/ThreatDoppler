@@ -17,3 +17,8 @@ export function success() {
 export function warning() {
   if (enabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
 }
+
+/** Tick as a chart scrubber moves onto a new point. */
+export function selectionTick() {
+  if (enabled) Haptics.selectionAsync().catch(() => {});
+}

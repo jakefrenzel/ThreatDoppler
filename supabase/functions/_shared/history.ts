@@ -131,6 +131,9 @@ export function buildHistory(all: IndexDay[]): HistoryRange[] {
     ranges.push({
       key: spec.key,
       series,
+      pointLabels: points.map((p) =>
+        spec.bucket === "day" ? dayMonth(p.first) : spec.bucket === "week" ? `WK OF ${dayMonth(p.first)}` : `${month(p.first)} ${p.first.slice(0, 4)}`
+      ),
       unit: spec.unit,
       axis: axis(points, spec),
       peak: { index: peakIndex, value: peakValue, label: `${peakValue} · ${peakDate}` },

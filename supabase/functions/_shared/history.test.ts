@@ -20,7 +20,11 @@ Deno.test("builds every range from five years of days", () => {
   assert.equal(d90.series.length, 90);
   assert.equal(y1.series.length, 52);
   assert.ok(y5.series.length >= 60 && y5.series.length <= 61);
+  assert.equal(d30.pointLabels?.at(-1), "03 OCT");
+  assert.match(y1.pointLabels?.[0] ?? "", /^WK OF \d\d [A-Z]{3}$/);
+  assert.equal(y5.pointLabels?.at(-1), "OCT 2026");
   for (const r of ranges) {
+    assert.equal(r.pointLabels?.length, r.series.length);
     assert.equal(r.timeInBand.reduce((a, b) => a + b.share, 0) >= 99, true);
     assert.ok(r.axis.every((a, i) => a.at >= 0 && a.at <= 1 && (i === 0 || a.at > r.axis[i - 1].at)));
     assert.equal(r.peak.value, Math.round(Math.max(...r.series)));
