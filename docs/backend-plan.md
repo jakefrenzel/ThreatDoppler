@@ -135,20 +135,32 @@ against the index's own previous two years and calibrated the same way. Over the
 and 7-day changes are plain differences. The "90% CI" figure is the 90% spread of the index's
 day-to-day noise around its 28-day trend.
 
-**Sectors and regions.** These are modelled. A sector's score is the sector's own mix of attack types
-(from VCDB incidents by industry) applied to the six global scores, adjusted by sector-specific signals
-where they exist. Examples: KEV vendor/product mapped to a sector (medical devices → health, industrial
-control systems → energy/manufacturing), Cloudflare Radar attacks by industry, and
-ransomware.live sectors (once approved, decision 2). Regions work the same way, using VCDB countries and Radar's
-target locations. Each sector or region's "top threat" is the attack type that contributes most to its
-score. The app labels these views "modelled estimate" until real sector or region data is in place.
+**Sectors and regions.** These are modelled. A sector's score is the six global sub-index scores,
+weighted by the decision 3 weights times the sector's "lift" for each attack type: how much more or
+less often that type shows up in the sector's VCDB incidents than in all of them (shrunk towards 1 for
+small samples, clipped to 0.5–2). `scripts/vcdb` computes the lifts from about 5,400 incidents since
+2010, pooled because VCDB has few after 2021, with MOVEit left out (one campaign entered as ~750
+incidents). Regions work the same way, using VCDB victim regions. Like the index, an area's weighted
+mean is ranked against its own two years and calibrated. Each sector or region's "top threat" is the
+attack type that contributes most to its score. The app labels these views "modelled estimate".
+*Not done yet* (as of 2026-10-04): sector-specific adjustments, such as KEV vendor/product mapped to a
+sector (medical devices → health, industrial control systems → energy/manufacturing), Radar attacks by
+industry and target location, and ransomware.live sectors (once approved, decision 2). Until then
+areas mostly follow the global scores, differing only through their mix.
 
 **Forecast.**
-- Each sub-index gets a damped-trend forecast for the next 7 days.
-- The ranges are the 90% band of that model's own past errors over the last 180 days.
-- The index forecast combines the sub-index forecasts using the weights.
-- "MAE 7D" is the average error of the last 30 days of forecasts against what actually happened.
-  It's stored as forecasts are made, so it's real, not claimed.
+- The index and each sub-index get a damped-trend forecast (Gardner–McKenzie) for the next 7 days,
+  fitted by grid search on the last year's one-step errors.
+- The ranges are the 90% band of that model's own errors at each horizon over the last 180 forecast
+  origins.
+- The index is forecast directly rather than combined from the sub-index forecasts: calibration makes
+  the index a non-linear function of them, and a direct forecast's errors are measured the same way.
+- Backtested over the last year (each origin using only earlier errors), the 90% ranges contained the
+  actual value 88% of the time for the index and 86–95% for the sub-indices. The fitted models are
+  close to "tomorrow looks like today", so ranges are wide (index MAE about 11 points over 7 days).
+- "MAE 7D" is the average error of the last 30 days of logged index forecasts against what actually
+  happened. Forecasts are logged in `forecasts` once a day, so it's real, not claimed; until 30 have
+  come due, the backtest's MAE is shown.
 - EPSS as an early signal for exploitation is a later improvement.
 
 **History.**

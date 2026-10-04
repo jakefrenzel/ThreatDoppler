@@ -5,7 +5,17 @@
 import { withSupabase } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { IndexSummary, SnapshotFile, VectorId, VectorScore } from "../../../src/data/types.ts";
+import type {
+  AreaScore,
+  ForecastDay,
+  IndexSummary,
+  RegionId,
+  SectorId,
+  SnapshotFile,
+  VectorId,
+  VectorScore,
+} from "../../../src/data/types.ts";
+import { forecast, HORIZON } from "../_shared/forecast.ts";
 import { buildHistory, type IndexDay } from "../_shared/history.ts";
 import { check, runInBackground } from "../_shared/runs.ts";
 
@@ -16,6 +26,102 @@ const MODEL = "0.1";
 const SOURCES = ["kev", "epss", "ransomlook", "osv", "hibp", "radar"];
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+const shiftDay = (day: string, by: number) => new Date(Date.parse(day) + by * 86_400_000).toISOString().slice(0, 10);
+const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+/** Sector and region scores for the latest day, with their last 30 days. Highest first. */
+async function areas(admin: SupabaseClient, today: string) {
+  const rows = check(
+    await admin.from("area_scores_daily").select("kind, area, day, score, top_vector")
+      .gt("day", shiftDay(today, -30)).lte("day", today).order("day", { ascending: true }),
+    "read area_scores_daily",
+  ) ?? [];
+  const build = <Id extends string>(kind: string): AreaScore<Id>[] => {
+    const byArea = new Map<string, { day: string; score: number; top: VectorId }[]>();
+    for (const r of rows.filter((r) => r.kind === kind)) {
+      byArea.set(r.area, [...(byArea.get(r.area) ?? []), { day: r.day, score: Number(r.score), top: r.top_vector }]);
+    }
+    const out: AreaScore<Id>[] = [];
+    for (const [area, series] of byArea) {
+      const last = series[series.length - 1];
+      if (last.day !== today) continue;
+      const back = (n: number) => series.find((s) => s.day === shiftDay(today, -n))?.score;
+      const scores = series.map((s) => s.score);
+      out.push({
+        id: area as Id,
+        score: last.score,
+        delta24h: back(1) === undefined ? 0 : round1(last.score - back(1)!),
+        delta7d: back(7) === undefined ? 0 : round1(last.score - back(7)!),
+        series7d: scores.slice(-7),
+        series30d: scores.slice(-30),
+        topVector: last.top,
+      });
+    }
+    return out.sort((a, b) => b.score - a.score);
+  };
+  return { sectors: build<SectorId>("sector"), regions: build<RegionId>("region") };
+}
+
+/**
+ * 7-day forecasts for the index and each sub-index from the latest complete day, logged once per
+ * day so the error figure can be measured. The app's MAE is the last 30 days' logged error, or the
+ * backtest's until 30 logged forecasts have come due.
+ */
+async function forecasts(admin: SupabaseClient, today: string, index: number[]) {
+  const scoreRows: { vector: string; day: string; score: number }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const page = check(
+      await admin.from("scores_daily").select("vector, day, score").gt("day", shiftDay(today, -730))
+        .lte("day", today).order("day", { ascending: true }).order("vector").range(from, from + 999),
+      "read scores_daily",
+    ) ?? [];
+    scoreRows.push(...page.map((r) => ({ vector: r.vector, day: r.day, score: Number(r.score) })));
+    if (page.length < 1000) break;
+  }
+  const series = new Map<string, number[]>([["index", index]]);
+  for (const r of scoreRows) series.set(r.vector, [...(series.get(r.vector) ?? []), r.score]);
+
+  const made = new Map<string, ReturnType<typeof forecast>>();
+  const log: { series: string; made_from: string; horizon: number; target_day: string; point: number; lo: number; hi: number }[] = [];
+  for (const [name, values] of series) {
+    if (values.length < 200) continue;
+    const f = forecast(values);
+    made.set(name, f);
+    for (let h = 1; h <= HORIZON; h++) {
+      log.push({ series: name, made_from: today, horizon: h, target_day: shiftDay(today, h), point: f.point[h - 1], lo: f.lo[h - 1], hi: f.hi[h - 1] });
+    }
+  }
+  check(
+    await admin.from("forecasts").upsert(log, { onConflict: "series,made_from,horizon", ignoreDuplicates: true }),
+    "log forecasts",
+  );
+
+  const idx = made.get("index");
+  const days: ForecastDay[] = idx
+    ? idx.point.map((point, i) => {
+      const name = WEEKDAYS[new Date(`${shiftDay(today, i + 1)}T00:00:00Z`).getUTCDay()];
+      const before = i === 0 ? index[index.length - 1] : idx.point[i - 1];
+      return { day: name, short: name[0], lo: idx.lo[i], hi: idx.hi[i], point, delta: round1(point - before) };
+    })
+    : [];
+
+  // Logged index forecasts that have come due in the last 30 days, against what happened.
+  const due = check(
+    await admin.from("forecasts").select("target_day, point").eq("series", "index")
+      .gt("target_day", shiftDay(today, -30)).lte("target_day", today),
+    "read forecasts",
+  ) ?? [];
+  const actual = await admin.from("index_daily").select("day, value").gt("day", shiftDay(today, -30)).lte("day", today);
+  const byDay = new Map((check(actual, "read index_daily") ?? []).map((r) => [r.day as string, Number(r.value)]));
+  const errors = due.flatMap((f) => (byDay.has(f.target_day) ? [Math.abs(byDay.get(f.target_day)! - Number(f.point))] : []));
+  const mae = errors.length >= 30 ? round1(errors.reduce((a, b) => a + b, 0) / errors.length) : idx?.mae ?? 0;
+
+  return {
+    forecast: days,
+    forecastStats: { mae },
+    vectorForecast: [...made].filter(([name]) => name !== "index").map(([id, f]) => ({ id: id as VectorId, values: f.point })),
+  };
+}
 
 /** Half-width of the 90% range of the index's daily noise around its 28-day trailing mean. */
 function noise(values: number[]): number {
@@ -69,7 +175,6 @@ async function render(admin: SupabaseClient): Promise<number> {
 
   // Same rule as compute_index(): each sub-index shows its latest score from the last 2 days, and
   // its 24-hour change is against the day before that score.
-  const shiftDay = (day: string, by: number) => new Date(Date.parse(day) + by * 86_400_000).toISOString().slice(0, 10);
   const scoreRows = check(
     await admin.from("scores_daily").select("vector, day, score").gte("day", shiftDay(today, -3))
       .order("day", { ascending: false }),
@@ -88,6 +193,8 @@ async function render(admin: SupabaseClient): Promise<number> {
       delta24h: before ? round1(Number(now.score) - Number(before.score)) : 0,
     });
   }
+
+  const [area, ahead] = await Promise.all([areas(admin, today), forecasts(admin, today, values)]);
 
   const sources: Record<string, string | null> = {};
   for (const source of SOURCES) {
@@ -112,6 +219,8 @@ async function render(admin: SupabaseClient): Promise<number> {
       trend30: values.slice(-30),
       vectors,
       history: buildHistory(days),
+      ...area,
+      ...ahead,
     },
   };
 
