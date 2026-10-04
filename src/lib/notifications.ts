@@ -4,6 +4,9 @@ import { AppState, Linking, Platform } from 'react-native';
 
 export type PushPermission = 'granted' | 'denied' | 'undetermined';
 
+/** The OS that owns the permission, for copy like "Blocked in iOS". Push isn't offered on web. */
+export const systemName = Platform.OS === 'android' ? 'Android' : 'iOS';
+
 async function readPermission(): Promise<PushPermission> {
   if (Platform.OS === 'web') return 'undetermined';
   try {

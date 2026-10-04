@@ -7,7 +7,7 @@ import { Mono, T } from '@/components/T';
 import { wordingOptions } from '@/copy/wording';
 import { regionNames, roleName, sectorNames } from '@/data/catalog';
 import { useSnapshot } from '@/data/SnapshotProvider';
-import { enablePush, usePushPermission } from '@/lib/notifications';
+import { enablePush, systemName, usePushPermission } from '@/lib/notifications';
 import { usePrefs } from '@/state/store';
 import { useColors } from '@/theme/ColorsProvider';
 
@@ -69,7 +69,7 @@ export default function Settings() {
           first
           label="Push notifications"
           labelWeight={500}
-          sub={permission === 'denied' ? 'BLOCKED IN IOS SETTINGS' : undefined}
+          sub={permission === 'denied' ? `BLOCKED IN ${systemName.toUpperCase()} SETTINGS` : undefined}
           value={pushOn}
           onChange={setPush}
         />

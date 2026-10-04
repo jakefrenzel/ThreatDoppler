@@ -10,7 +10,7 @@ import { Mono, T } from '@/components/T';
 import { useCopy } from '@/copy/wording';
 import { useSnapshot } from '@/data/SnapshotProvider';
 import { expectedAlerts, extraVolume, levelVolume, notificationPreviews } from '@/lib/alerts';
-import { requestPushPermission } from '@/lib/notifications';
+import { requestPushPermission, systemName } from '@/lib/notifications';
 import { useOnboardingNav } from '@/lib/onboarding';
 import { levelThreshold, usePrefs } from '@/state/store';
 import { useColors } from '@/theme/ColorsProvider';
@@ -121,7 +121,7 @@ export default function NotificationsStep() {
             </T>
           </Pressable>
           <T size={12} color={c.dim} align="center">
-            iOS will ask you to confirm. Change this any time in Settings.
+            {`${systemName} will ask you to confirm. Change this any time in Settings.`}
           </T>
         </View>
       </OnboardingFooter>

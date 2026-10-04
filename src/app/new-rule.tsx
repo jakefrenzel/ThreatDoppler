@@ -14,7 +14,7 @@ import { useSnapshot } from '@/data/SnapshotProvider';
 import { backtest, backtestSeries } from '@/lib/alerts';
 import { setUpChannel } from '@/lib/channels';
 import { success } from '@/lib/haptics';
-import { usePushPermission } from '@/lib/notifications';
+import { systemName, usePushPermission } from '@/lib/notifications';
 import { usePrefs, type AlertRule, type Channel } from '@/state/store';
 import { useColors } from '@/theme/ColorsProvider';
 import { bandFor, palette } from '@/theme/tokens';
@@ -88,7 +88,7 @@ export default function NewRule() {
 
   const pushReady = permission !== 'denied';
   const channelInfo: { ch: Channel; label: string; connected: boolean; detail: string }[] = [
-    { ch: 'push', label: 'PUSH', connected: pushReady, detail: pushReady ? 'This phone' : 'Blocked in iOS' },
+    { ch: 'push', label: 'PUSH', connected: pushReady, detail: pushReady ? 'This phone' : `Blocked in ${systemName}` },
     { ch: 'email', label: 'EMAIL', connected: prefs.channels.email.connected, detail: prefs.channels.email.connected ? prefs.channels.email.detail : 'Not connected' },
     { ch: 'slack', label: 'SLACK', connected: prefs.channels.slack.connected, detail: prefs.channels.slack.connected ? prefs.channels.slack.detail : 'Not connected' },
   ];

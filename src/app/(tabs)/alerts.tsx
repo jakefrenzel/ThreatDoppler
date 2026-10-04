@@ -12,7 +12,7 @@ import { useCopy } from '@/copy/wording';
 import { useSnapshot } from '@/data/SnapshotProvider';
 import { ruleLabel, ruleSub } from '@/lib/alerts';
 import { setUpChannel } from '@/lib/channels';
-import { enablePush, usePushPermission } from '@/lib/notifications';
+import { enablePush, systemName, usePushPermission } from '@/lib/notifications';
 import { usePrefs } from '@/state/store';
 import { useColors } from '@/theme/ColorsProvider';
 import { bandFor } from '@/theme/tokens';
@@ -35,7 +35,7 @@ export default function Alerts() {
     prefs.set('pushEnabled', true);
   };
 
-  const pushSub = permission === 'denied' ? 'Blocked in iOS' : permission === 'undetermined' ? 'Not allowed yet' : prefs.pushEnabled ? 'This phone' : 'Turned off';
+  const pushSub = permission === 'denied' ? `Blocked in ${systemName}` : permission === 'undetermined' ? 'Not allowed yet' : prefs.pushEnabled ? 'This phone' : 'Turned off';
 
   return (
     <Screen tabBar>
