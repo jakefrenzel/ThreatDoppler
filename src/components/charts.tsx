@@ -3,7 +3,7 @@ import { Animated, Easing, View } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Polyline, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
 import { useReduceMotion } from '@/lib/a11y';
-import { lineChart, movingAverage, sparkline } from '@/lib/charts';
+import { lineChart, movingAverage, sparkline, trendDomain } from '@/lib/charts';
 import { useAnimatedValue } from '@/lib/useAnimatedValue';
 import { useColors } from '@/theme/ColorsProvider';
 import { bandColor, fonts, palette } from '@/theme/tokens';
@@ -82,8 +82,11 @@ function RevealChart({
 export function TrendChart({ values }: { values: number[] }) {
   const c = useColors();
   const id = useId('g30');
-  // y = (90 − v) × 1.8 puts 70 at y 36 and 50 at y 72, as in the design.
-  const chart = lineChart(values, 320, 90, (v) => (90 - v) * 1.8);
+  // Over the design's 40–90 range this puts 70 at y 36 and 50 at y 72; lower or higher values
+  // widen the range so the line stays inside the chart.
+  const [lo, hi] = trendDomain(values);
+  const y = (v: number) => ((hi - v) / (hi - lo)) * 90;
+  const chart = lineChart(values, 320, 90, y);
   const [ex, ey] = chart.points[chart.points.length - 1];
   return (
     <RevealChart
@@ -92,12 +95,12 @@ export function TrendChart({ values }: { values: number[] }) {
       revealKey={values.join(',')}
       base={
         <>
-          <Line x1={0} y1={36} x2={320} y2={36} stroke="rgba(255,107,53,0.5)" strokeWidth={1} strokeDasharray="2 4" />
-          <Line x1={0} y1={72} x2={320} y2={72} stroke="rgba(255,244,235,0.2)" strokeWidth={1} strokeDasharray="2 4" />
-          <SvgText x={326} y={39} fontFamily={MONO} fontSize={9} fill={c.mute}>
+          <Line x1={0} y1={y(70)} x2={320} y2={y(70)} stroke="rgba(255,107,53,0.5)" strokeWidth={1} strokeDasharray="2 4" />
+          <Line x1={0} y1={y(50)} x2={320} y2={y(50)} stroke="rgba(255,244,235,0.2)" strokeWidth={1} strokeDasharray="2 4" />
+          <SvgText x={326} y={y(70) + 3} fontFamily={MONO} fontSize={9} fill={c.mute}>
             70
           </SvgText>
-          <SvgText x={326} y={75} fontFamily={MONO} fontSize={9} fill={c.mute}>
+          <SvgText x={326} y={y(50) + 3} fontFamily={MONO} fontSize={9} fill={c.mute}>
             50
           </SvgText>
         </>

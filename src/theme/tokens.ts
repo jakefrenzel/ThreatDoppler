@@ -75,14 +75,6 @@ export const heatStops: [number, string][] = [
   [0.88, '#E8364A'],
 ];
 
-// Forecast range gradient, mapped over the 40–100 domain of the range bars.
-export const heatForecastStops: [number, string][] = [
-  [0, '#CDB97E'],
-  [0.167, '#F2A65A'],
-  [0.5, '#FF6B35'],
-  [0.8, '#E8364A'],
-];
-
 export const fonts = {
   sans: {
     400: 'SpaceGrotesk_400Regular',

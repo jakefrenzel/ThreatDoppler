@@ -14,6 +14,16 @@ export function lineChart(values: number[], width: number, height: number, y: (v
   return { points, line, area: `${line}L${width} ${height}L0 ${height}Z` };
 }
 
+/**
+ * Value range for the 30-day trend chart: the design's 40–90, widened to the nearest 10 when
+ * values fall outside it (live data can be anywhere from 0 to 100).
+ */
+export function trendDomain(values: number[]): [number, number] {
+  const lo = Math.max(0, Math.min(40, Math.floor(Math.min(...values) / 10) * 10));
+  const hi = Math.min(100, Math.max(90, Math.ceil(Math.max(...values) / 10) * 10));
+  return [lo, hi];
+}
+
 /** Trailing moving average over `window` points. */
 export function movingAverage(values: number[], window: number): number[] {
   return values.map((_, i) => {

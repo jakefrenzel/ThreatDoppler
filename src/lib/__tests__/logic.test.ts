@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from '@jest/globals';
 import { copyFor } from '@/copy/wording';
 import { sampleSnapshot } from '@/data/sample';
 import { backtest, backtestSeries, expectedAlerts, notificationPreviews, personalIndex, ruleLabel, ruleSub } from '@/lib/alerts';
-import { lineChart, movingAverage } from '@/lib/charts';
+import { lineChart, movingAverage, trendDomain } from '@/lib/charts';
 import { ago, signed, signedInt } from '@/lib/format';
 import { threatFor } from '@/lib/threats';
 import { defaultPrefs, defaultRules, rulesFromOnboarding, usePrefs } from '@/state/store';
@@ -109,6 +109,13 @@ describe('alerts', () => {
 });
 
 describe('charts', () => {
+  it('keeps the trend chart on the design range, widening it for values outside', () => {
+    expect(trendDomain([55, 72, 61])).toEqual([40, 90]);
+    expect(trendDomain([25.3, 63, 51])).toEqual([20, 90]);
+    expect(trendDomain([88, 96])).toEqual([40, 100]);
+    expect(trendDomain([0, 100])).toEqual([0, 100]);
+  });
+
   it('maps the 30-day series onto the design viewBox', () => {
     const chart = lineChart([90, 70, 50], 320, 90, (v) => (90 - v) * 1.8);
     expect(chart.line).toBe('M0 0L160 36L320 72');

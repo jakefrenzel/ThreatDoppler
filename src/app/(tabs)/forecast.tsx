@@ -16,13 +16,14 @@ import type { ForecastDay } from '@/data/types';
 import { useTextSize } from '@/lib/a11y';
 import { plusMinus, signedInt } from '@/lib/format';
 import { useColors } from '@/theme/ColorsProvider';
-import { bandFor, heatForecastStops } from '@/theme/tokens';
+import { bandFor, heatStops } from '@/theme/tokens';
 
-const DOMAIN = [40, 100] as const;
+// The full scale: live forecast ranges can reach well below the design's 40.
+const DOMAIN = [0, 100] as const;
 const frac = (v: number) => (v - DOMAIN[0]) / (DOMAIN[1] - DOMAIN[0]);
 const DAY_NAMES: Record<string, string> = { MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday', SUN: 'Sunday' };
 
-/** 90% range bar: the heat gradient spans the whole 40–100 track and only the lo–hi segment shows. */
+/** 90% range bar: the heat gradient spans the whole 0–100 track and only the lo–hi segment shows. */
 function RangeBar({ day }: { day: ForecastDay }) {
   const c = useColors();
   const [w, setW] = useState(0);
@@ -36,7 +37,7 @@ function RangeBar({ day }: { day: ForecastDay }) {
             <Svg width={w} height={6} style={{ position: 'absolute', left: -left }}>
               <Defs>
                 <LinearGradient id={`fr${day.day}`} x1="0" y1="0" x2={w} y2="0" gradientUnits="userSpaceOnUse">
-                  {heatForecastStops.map(([o, color]) => (
+                  {heatStops.map(([o, color]) => (
                     <Stop key={o} offset={o} stopColor={color} />
                   ))}
                 </LinearGradient>
