@@ -1,7 +1,5 @@
 // Renders the snapshot the app reads from the scores compute_scores() wrote (cron, at :15) and
-// uploads it to the public snapshot bucket. Runs hourly at :20. Until every part of the Snapshot
-// is computed, the file is marked partial and the app fills the rest from sample data behind a dev
-// flag.
+// uploads it to the public snapshot bucket. Runs hourly at :20.
 import { withSupabase } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -13,6 +11,7 @@ import type {
   RegionId,
   SectorId,
   SnapshotFile,
+  SourceId,
   ThreatDetail,
   ThreatEvent,
   VectorId,
@@ -27,7 +26,7 @@ import { check, runInBackground } from "../_shared/runs.ts";
 const SCHEMA_VERSION = 1;
 /** Version of the method in docs/backend-plan.md, shown in the app as "MODEL x". */
 const MODEL = "0.1";
-const SOURCES = ["kev", "epss", "ransomlook", "osv", "hibp", "radar"];
+const SOURCES: SourceId[] = ["kev", "epss", "ransomlook", "osv", "hibp", "radar"];
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const shiftDay = (day: string, by: number) => new Date(Date.parse(day) + by * 86_400_000).toISOString().slice(0, 10);
@@ -127,16 +126,17 @@ async function forecasts(admin: SupabaseClient, today: string, index: number[]) 
   };
 }
 
-/** Half-width of the 90% range of the index's daily noise around its 28-day trailing mean. */
+/**
+ * The app's "±" figure: half-width of the 90% range of the index's day-to-day moves over the last
+ * 90 days, i.e. how much a reading typically wobbles. (Until step 8 it was the spread around the
+ * 28-day mean, which after calibration mostly measured real swings, about ±22.)
+ */
 function noise(values: number[]): number {
-  const residuals: number[] = [];
-  for (let i = 27; i < values.length; i++) {
-    const window = values.slice(i - 27, i + 1);
-    residuals.push(values[i] - window.reduce((a, b) => a + b, 0) / window.length);
-  }
-  if (residuals.length < 28) return 0;
-  residuals.sort((a, b) => a - b);
-  const at = (q: number) => residuals[Math.round(q * (residuals.length - 1))];
+  const recent = values.slice(-91);
+  const moves = recent.slice(1).map((v, i) => v - recent[i]);
+  if (moves.length < 28) return 0;
+  moves.sort((a, b) => a - b);
+  const at = (q: number) => moves[Math.round(q * (moves.length - 1))];
   return round1((at(0.95) - at(0.05)) / 2);
 }
 
@@ -279,7 +279,7 @@ async function render(admin: SupabaseClient): Promise<number> {
     value: at(0),
     delta24h: values.length > 1 ? round1(at(0) - at(1)) : 0,
     delta7d: values.length > 7 ? round1(at(0) - at(7)) : 0,
-    ci: noise(values.slice(-118)),
+    ci: noise(values),
   };
 
   // Same rule as compute_index(): each sub-index shows its latest score from the last 2 days, and
@@ -310,7 +310,7 @@ async function render(admin: SupabaseClient): Promise<number> {
     feed(admin, days, vectors),
   ]);
 
-  const sources: Record<string, string | null> = {};
+  const sources: Partial<Record<SourceId, string | null>> = {};
   for (const source of SOURCES) {
     const last = check(
       await admin.from("source_runs").select("finished_at").eq("source", source).eq("status", "ok")
@@ -324,9 +324,8 @@ async function render(admin: SupabaseClient): Promise<number> {
   const file: SnapshotFile = {
     schemaVersion: SCHEMA_VERSION,
     generatedAt,
-    partial: true,
-    sources,
     snapshot: {
+      sources,
       model: MODEL,
       updatedAt: generatedAt,
       index,
@@ -336,6 +335,8 @@ async function render(admin: SupabaseClient): Promise<number> {
       ...area,
       ...ahead,
       ...live,
+      // Alert deliveries arrive with milestone 3; the app hides the card until then.
+      deliveries: [],
     },
   };
 

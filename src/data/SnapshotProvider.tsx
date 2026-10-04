@@ -2,12 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { fetchSnapshot } from './api';
+import { dataSource, fetchSnapshot } from './api';
+import { SnapshotError } from './live';
 import type { Snapshot } from './types';
+import { isSnapshot } from './validate';
 
-const CACHE_KEY = 'td.snapshot.v1';
+// Per source, so sample data cached in development is never shown as live (and vice versa).
+const CACHE_KEY = `td.snapshot.v2.${dataSource()}`;
 
-export type SnapshotStatus = 'loading' | 'ready' | 'refreshing' | 'offline';
+/** offline: no connection. error: connected, but the service failed or sent data this build can't use. */
+export type SnapshotStatus = 'loading' | 'ready' | 'refreshing' | 'offline' | 'error';
 
 interface SnapshotContextValue {
   data: Snapshot | null;
@@ -45,8 +49,8 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
         setData(next);
         setStatus('ready');
         AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
-      } catch {
-        setStatus('offline');
+      } catch (e) {
+        setStatus(e instanceof SnapshotError && e.kind === 'service' ? 'error' : 'offline');
       } finally {
         setSettled(true);
         inFlight.current = null;
@@ -61,7 +65,10 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
     // Show cached data straight away, then fetch fresh data on top of it.
     AsyncStorage.getItem(CACHE_KEY)
       .then((raw) => {
-        if (!cancelled && raw && !dataRef.current) setData(JSON.parse(raw) as Snapshot);
+        if (cancelled || !raw || dataRef.current) return;
+        // A cache from an older build, or a damaged one, is dropped rather than shown.
+        const cached: unknown = JSON.parse(raw);
+        if (isSnapshot(cached)) setData(cached);
       })
       .catch(() => {})
       .finally(() => {

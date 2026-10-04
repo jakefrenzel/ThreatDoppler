@@ -5,12 +5,12 @@ import { Pressable, View } from 'react-native';
 import { TrendChart } from '@/components/charts';
 import { BandDot, CountUp, ScoreBar, Tile, TileRow } from '@/components/data';
 import { Card, CardHeader, CircleButton, Header, HeaderPill } from '@/components/layout';
-import { OFFLINE_OPACITY, OfflineBanner } from '@/components/OfflineBanner';
+import { OFFLINE_OPACITY, StatusBanner } from '@/components/OfflineBanner';
 import { Screen } from '@/components/Screen';
 import { Bone, SkeletonCard } from '@/components/states';
 import { Mono, T } from '@/components/T';
 import { useCopy } from '@/copy/wording';
-import { regionNames, vectorNames } from '@/data/catalog';
+import { regionNames, vectorNames, vectorOrder } from '@/data/catalog';
 import { useSnapshot } from '@/data/SnapshotProvider';
 import type { Snapshot } from '@/data/types';
 import { useTextSize } from '@/lib/a11y';
@@ -25,7 +25,7 @@ import { bandFor } from '@/theme/tokens';
 export default function NowScreen() {
   const { data, status, refresh } = useSnapshot();
   if (!data) return <NowLoading />;
-  return <NowContent data={data} offline={status === 'offline'} refreshing={status === 'refreshing'} onRefresh={refresh} />;
+  return <NowContent data={data} offline={status === 'offline' || status === 'error'} refreshing={status === 'refreshing'} onRefresh={refresh} />;
 }
 
 function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; offline: boolean; refreshing: boolean; onRefresh: () => void }) {
@@ -66,7 +66,7 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
           </>
         }
       />
-      {offline && <OfflineBanner />}
+      <StatusBanner />
       <View style={{ gap: 10, opacity: offline ? OFFLINE_OPACITY : 1 }}>
         <TileRow wrap={accessibility}>
           <Tile
@@ -136,7 +136,26 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
                 {L.d24}
               </Mono>
             </View>
-            {data.vectors.map((v, i) => {
+            {vectorOrder.map((id, i) => {
+              const v = data.vectors.find((x) => x.id === id);
+              // A sub-index with no current score (no data yet, or its sources are stale).
+              if (!v) {
+                return (
+                  <View
+                    key={id}
+                    accessible
+                    accessibilityLabel={`${vectorNames[id]}, no data yet`}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: c.line }}
+                  >
+                    <T size={13} weight={500} color={c.mute} style={{ flex: 1 }} numberOfLines={1}>
+                      {vectorNames[id]}
+                    </T>
+                    <Mono size={10} tracking={0} color={c.dim}>
+                      NO DATA YET
+                    </Mono>
+                  </View>
+                );
+              }
               const color = bandFor(v.score).color;
               const dColor = v.delta24h > 0.5 ? c.ember : v.delta24h < 0 ? c.b1 : c.mute;
               return (
@@ -205,6 +224,11 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
         </View>
 
         <View style={{ marginHorizontal: 20, gap: 5 }}>
+          {data.events.length === 0 && (
+            <T size={12} color={c.mute}>
+              {copy.isPlain ? 'Nothing new in the last day.' : 'No new events in the last 24 hours.'}
+            </T>
+          )}
           {data.events.slice(0, 2).map((e) => (
             <Pressable
               key={e.id}
@@ -250,6 +274,8 @@ function NowLoading() {
         </View>
         <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.card2 }} />
       </View>
+      {/* With nothing saved, a failed first fetch shows here with Retry instead of loading forever. */}
+      <StatusBanner />
       <View style={{ flexDirection: 'row', gap: 6, marginHorizontal: 14 }}>
         {[1.4, 1, 1, 1].map((flex, i) => (
           <SkeletonCard key={i} radius={18} style={{ flex, height: 62, paddingVertical: 10, paddingHorizontal: 12, gap: 8 }}>

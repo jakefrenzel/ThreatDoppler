@@ -3,20 +3,28 @@ import { utcTime } from '@/lib/format';
 import { GhostPill } from './controls';
 import { Banner } from './states';
 
-/** 13b: shown below the header while offline; cached content stays visible at 55% opacity. */
-export function OfflineBanner() {
-  const { data, refresh } = useSnapshot();
+/**
+ * Shown below the header when the latest data couldn't be fetched; cached content stays visible
+ * at 55% opacity. 13b covers being offline; a service problem uses the same layout.
+ */
+export function StatusBanner() {
+  const { data, status, refresh } = useSnapshot();
+  if (status !== 'offline' && status !== 'error') return null;
+  const saved = data ? `Showing saved data from ${utcTime(data.updatedAt)} UTC.` : '';
   const body = data ? `SHOWING SAVED DATA FROM ${utcTime(data.updatedAt)} UTC` : 'NO SAVED DATA YET';
-  return (
+  const action = <GhostPill ink label="Retry" onPress={refresh} />;
+  return status === 'offline' ? (
+    <Banner icon="wifiOff" title="You're offline" body={body} announce={`You're offline. ${saved}`} action={action} />
+  ) : (
     <Banner
-      icon="wifiOff"
-      title="You're offline"
+      icon="activity"
+      title="Live data unavailable"
       body={body}
-      announce={`You're offline. ${data ? `Showing saved data from ${utcTime(data.updatedAt)} UTC.` : ''}`}
-      action={<GhostPill ink label="Retry" onPress={refresh} />}
+      announce={`Live data is unavailable right now. ${saved}`}
+      action={action}
     />
   );
 }
 
-/** Opacity for cached content while offline. */
+/** Opacity for cached content while offline or while the service is unavailable. */
 export const OFFLINE_OPACITY = 0.55;

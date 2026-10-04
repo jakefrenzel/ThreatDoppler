@@ -132,6 +132,9 @@ export default function Breakdown() {
               {view === 'sectors' ? 'YOUR SECTORS' : 'YOUR REGIONS'}
             </Mono>
           </View>
+          <T size={12} leading={1.4} color={c.mute} style={{ marginHorizontal: 20 }}>
+            {`Modelled estimate. Each ${view === 'sectors' ? 'sector' : 'region'}'s score applies its usual mix of attack types to the global scores, so it moves with them.`}
+          </T>
         </>
       )}
     </Screen>

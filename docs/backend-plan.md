@@ -132,8 +132,8 @@ so the app shows the latest complete day.
 than that, a sub-index is stale and its weight is spread over the others. That raw value is ranked
 against the index's own previous two years and calibrated the same way. Over the last two years: Low
 4%, Guarded 28%, Elevated 48%, High 17%, Severe 4%, moving 4.8 points a day on average. The 24-hour
-and 7-day changes are plain differences. The "90% CI" figure is the 90% spread of the index's
-day-to-day noise around its 28-day trend.
+and 7-day changes are plain differences. The "90% CI" (Plain: "± range") figure is half the 90% range
+of the index's day-to-day moves over the last 90 days: nine days out of ten it moves less than that.
 
 **Sectors and regions.** These are modelled. A sector's score is the six global sub-index scores,
 weighted by the decision 3 weights times the sector's "lift" for each attack type: how much more or
@@ -296,23 +296,32 @@ App ──► fetch latest.json (fall back to the RPC) ──► existing Snapsh
 
 ## App changes
 
-- `src/data/api.ts`:
-  - Fetch the snapshot URL, falling back to the RPC.
-  - 10 s timeout.
-  - **Check the shape** of the data before using it, for network and cache alike (the audit's main
-    open item).
-  - Tell "offline" apart from "the service had a problem".
-  - Keep the sample data behind a flag for development and tests.
-- Env vars: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-- **About → Data sources:** replace the "Sample data" card with the real sources and their required
-  attributions (KEV, EPSS, RansomLook, OSV, HIBP, VCDB, Cloudflare Radar). This is a licence requirement,
-  not optional.
-- **About → How the index works:** describe the method above, including "sector and region views are
-  modelled estimates".
-- Breakdown screen: a small "Modelled" note until real sector/region data exists.
-- ~~Add the `breach` event type (decision 4)~~ (done in step 7). Hide "Recent deliveries" until
-  milestone 3. The breach detail page must link to haveibeenpwned.com (HIBP licence).
-- Sub-indices with no data show "No data yet" instead of a number.
+Done in step 8 (2026-10-04), unless marked otherwise.
+
+- `src/data/live.ts` and `src/data/api.ts`:
+  - Fetch the Storage file, falling back to `get_snapshot()` if that fails for any reason but being
+    offline. 10 s timeout.
+  - **Shape check** (`src/data/validate.ts`) on network data and on the cache, which is dropped if it
+    fails. Unknown ids, missing fields and an unknown `schemaVersion` all count as failures.
+  - `SnapshotError` says `offline` (no answer) or `service` (an error or unusable data). The provider
+    shows `offline` or `error`, and each has its own banner over the saved data.
+  - Sample data with `EXPO_PUBLIC_SAMPLE_DATA=1`, or in development when live data isn't configured.
+    The cache key includes the source, so sample data is never shown as live.
+- Env vars: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`.env.local` for
+  development; EAS build profiles for releases, at step 9).
+- **About → Data sources:** the real sources with their credits and licences, links, and when each last
+  updated (flagged when older than 2 days). The list is `src/data/sources.ts`.
+- **Every event detail page** credits its source with a link (HIBP requires a visible link).
+- **About → How the index works:** the method above, in short, including that sectors and regions are
+  modelled estimates.
+- Breakdown screen: a "Modelled estimate" note.
+- `breach` event type (decision 4), in step 7. "Recent deliveries" is hidden while there are none
+  (until milestone 3).
+- Sub-indices without a current score show "No data yet". Feed filter chips with no events are hidden
+  (phishing has no event source, and live events don't name sectors yet). Screens show the status banner
+  with Retry even when nothing is saved, instead of loading forever.
+- The "±" figure is now the 90% range of day-to-day moves over 90 days (about ±16), not the spread around
+  the 28-day mean (about ±22 after calibration, which was mostly real swings).
 
 ## Order of work
 

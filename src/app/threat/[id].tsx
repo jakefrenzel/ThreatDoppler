@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, View } from 'react-native';
@@ -12,6 +13,7 @@ import { Tile } from '@/components/data';
 import { useCopy } from '@/copy/wording';
 import { sectorNames } from '@/data/catalog';
 import { useSnapshot } from '@/data/SnapshotProvider';
+import { sourceForEvent } from '@/data/sources';
 import { lightTap } from '@/lib/haptics';
 import { threatFor } from '@/lib/threats';
 import { useColors } from '@/theme/ColorsProvider';
@@ -33,6 +35,8 @@ export default function ThreatDetailSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data } = useSnapshot();
   const found = data && id ? threatFor(data, id) : null;
+  // Each source's licence asks for credit (HIBP: a visible link) wherever its data is shown.
+  const source = found?.event ? sourceForEvent(found.event.source) : undefined;
   const [done, setDone] = useState<Record<number, boolean>>({});
 
   const close = () => router.back();
@@ -199,6 +203,19 @@ export default function ThreatDetailSheet() {
               );
             })}
           </View>
+          {source && (
+            <Pressable
+              onPress={() => Linking.openURL(source.url)}
+              accessibilityRole="link"
+              accessibilityLabel={`Source: ${source.name}, ${source.licence}. Opens ${source.url}`}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, opacity: pressed ? 0.7 : 1 })}
+            >
+              <Mono size={10} tracking={0} color={c.mute} style={{ flex: 1 }}>
+                {`SOURCE · ${source.name.toUpperCase()} · ${source.url.replace(/^https:\/\/(www\.)?/, '')}`}
+              </Mono>
+              <Icon name="chevronRight" size={12} color={c.dim} />
+            </Pressable>
+          )}
         </ScrollView>
       )}
     </View>

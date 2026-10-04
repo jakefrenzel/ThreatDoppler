@@ -104,7 +104,8 @@ export default function Alerts() {
           );
         })}
       </View>
-      {data && (
+      {/* Deliveries arrive with alert delivery (milestone 3); until then live data has none. */}
+      {data && data.deliveries.length > 0 && (
         <Card padding={[10, 14]} style={{ gap: 6 }}>
           <CardHeader
             left="RECENT DELIVERIES"

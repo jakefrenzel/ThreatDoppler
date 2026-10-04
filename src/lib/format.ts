@@ -32,6 +32,16 @@ export function utcTime(iso: string): string {
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
+/** How long ago, for status lines: JUST NOW, 25 MIN AGO, 3H AGO, 2 DAYS AGO. */
+export function ago(iso: string, now = Date.now()): string {
+  const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
+  if (minutes < 2) return 'JUST NOW';
+  if (minutes < 60) return `${minutes} MIN AGO`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}H AGO`;
+  return `${Math.round(hours / 24)} DAYS AGO`;
+}
+
 export function localTime(iso: string): string {
   const d = new Date(iso);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;

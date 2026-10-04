@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
 import { fetchSnapshot } from '@/data/api';
+import { SnapshotError } from '@/data/live';
 import { sampleSnapshot } from '@/data/sample';
 import { SnapshotProvider, useSnapshot } from '@/data/SnapshotProvider';
 
@@ -26,7 +27,9 @@ jest.mock('@react-native-community/netinfo', () => ({
   },
 }));
 
-jest.mock('@/data/api', () => ({ fetchSnapshot: jest.fn() }));
+jest.mock('@/data/api', () => ({ fetchSnapshot: jest.fn(), dataSource: () => 'live' }));
+
+const CACHE_KEY = 'td.snapshot.v2.live';
 
 function setConnected(isConnected: boolean) {
   mockNet.connected = isConnected;
@@ -34,7 +37,8 @@ function setConnected(isConnected: boolean) {
 }
 
 function Status() {
-  return <Text>{useSnapshot().status}</Text>;
+  const { status, data } = useSnapshot();
+  return <Text>{`${status} ${data?.model ?? 'none'}`}</Text>;
 }
 
 const renderProvider = () =>
@@ -54,46 +58,66 @@ describe('SnapshotProvider', () => {
   it('fetches again when the connection comes back', async () => {
     mockNet.connected = false;
     await renderProvider();
-    await screen.findByText('offline');
+    await screen.findByText(/^offline/);
     expect(fetchSnapshot).not.toHaveBeenCalled();
 
     await act(() => setConnected(true));
-    await screen.findByText('ready');
+    await screen.findByText(/^ready/);
     expect(fetchSnapshot).toHaveBeenCalledTimes(1);
   });
 
   it('goes offline when the connection drops, then recovers', async () => {
     await renderProvider();
-    await screen.findByText('ready');
+    await screen.findByText(/^ready/);
 
     await act(() => setConnected(false));
-    await screen.findByText('offline');
+    await screen.findByText(/^offline/);
 
     await act(() => setConnected(true));
-    await screen.findByText('ready');
+    await screen.findByText(/^ready/);
     expect(fetchSnapshot).toHaveBeenCalledTimes(2);
   });
 
   it('shares one fetch between overlapping reloads', async () => {
     mockNet.connected = false;
     await renderProvider();
-    await screen.findByText('offline');
+    await screen.findByText(/^offline/);
 
     await act(() => {
       setConnected(true);
       setConnected(true);
       setConnected(true);
     });
-    await screen.findByText('ready');
+    await screen.findByText(/^ready/);
     expect(fetchSnapshot).toHaveBeenCalledTimes(1);
   });
 
   it('does not refetch on connection events while already online', async () => {
     await renderProvider();
-    await screen.findByText('ready');
+    await screen.findByText(/^ready/);
 
     await act(() => setConnected(true));
-    await screen.findByText('ready');
+    await screen.findByText(/^ready/);
     expect(fetchSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells a service problem apart from being offline, and keeps saved data', async () => {
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(sampleSnapshot));
+    jest.mocked(fetchSnapshot).mockRejectedValue(new SnapshotError('service', 'Snapshot request failed with 503'));
+    await renderProvider();
+    await screen.findByText(`error ${sampleSnapshot.model}`);
+  });
+
+  it('treats a network failure as offline', async () => {
+    jest.mocked(fetchSnapshot).mockRejectedValue(new SnapshotError('offline', 'Network request failed'));
+    await renderProvider();
+    await screen.findByText('offline none');
+  });
+
+  it('ignores a saved snapshot that fails the shape check', async () => {
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ ...sampleSnapshot, vectors: null, model: 'old' }));
+    jest.mocked(fetchSnapshot).mockRejectedValue(new SnapshotError('offline', 'Network request failed'));
+    await renderProvider();
+    await screen.findByText('offline none');
   });
 });

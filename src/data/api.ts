@@ -1,19 +1,27 @@
-import { fetchSnapshotFile, liveSnapshotUrl, overlayLive } from './live';
+import { fetchLiveSnapshot, SnapshotError } from './live';
 import { sampleSnapshot } from './sample';
 import type { Snapshot } from './types';
 
 /**
- * Fetches the latest snapshot. By default this resolves the sample data after a short delay, to
- * exercise the loading states. With EXPO_PUBLIC_LIVE_DATA=1 and EXPO_PUBLIC_SUPABASE_URL set (in
- * .env.local), it reads the published snapshot and lays it over the sample data, since the
- * backend doesn't compute every part yet.
+ * Where the snapshot comes from. Live data needs EXPO_PUBLIC_SUPABASE_URL and
+ * EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (in .env.local, or the EAS build profile). Sample data is
+ * used with EXPO_PUBLIC_SAMPLE_DATA=1, or in development when live data isn't configured.
  */
+export function dataSource(): 'live' | 'sample' {
+  if (process.env.EXPO_PUBLIC_SAMPLE_DATA === '1') return 'sample';
+  if (process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return 'live';
+  return __DEV__ ? 'sample' : 'live';
+}
+
+/** Fetches the latest snapshot. Throws SnapshotError, saying whether it was offline or a service problem. */
 export async function fetchSnapshot(): Promise<Snapshot> {
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  if (process.env.EXPO_PUBLIC_LIVE_DATA === '1' && supabaseUrl) {
-    const file = await fetchSnapshotFile(liveSnapshotUrl(supabaseUrl));
-    return overlayLive(sampleSnapshot, file.snapshot);
+  if (dataSource() === 'sample') {
+    // A short delay exercises the loading states.
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    return sampleSnapshot;
   }
-  await new Promise((resolve) => setTimeout(resolve, 700));
-  return sampleSnapshot;
+  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) throw new SnapshotError('service', 'Live data is not configured in this build');
+  return fetchLiveSnapshot({ url, publishableKey });
 }

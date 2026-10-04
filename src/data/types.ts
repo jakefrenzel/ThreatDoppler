@@ -139,7 +139,11 @@ export interface Snapshot {
   history: HistoryRange[];
   threats: Record<string, ThreatDetail>;
   deliveries: Delivery[];
+  /** When each data source last updated successfully (ISO), or null if never. Live data only. */
+  sources?: Partial<Record<SourceId, string | null>>;
 }
+
+export type SourceId = 'kev' | 'epss' | 'ransomlook' | 'osv' | 'hibp' | 'radar';
 
 /**
  * The file the backend publishes (snapshot/v1/latest.json), also returned by get_snapshot().
@@ -149,9 +153,5 @@ export interface SnapshotFile {
   /** Bumped when the file changes in a way older app builds can't read. */
   schemaVersion: number;
   generatedAt: string; // ISO
-  /** True while some Snapshot fields aren't computed yet. */
-  partial: boolean;
-  /** When each source last ran successfully (ISO), or null if it never has. */
-  sources: Record<string, string | null>;
-  snapshot: Partial<Snapshot>;
+  snapshot: Snapshot;
 }

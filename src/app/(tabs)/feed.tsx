@@ -5,13 +5,13 @@ import { Animated, Easing, Pressable, ScrollView, View } from 'react-native';
 import { Chip } from '@/components/controls';
 import { StackedBar } from '@/components/data';
 import { Card, CardHeader, Header } from '@/components/layout';
-import { OFFLINE_OPACITY, OfflineBanner } from '@/components/OfflineBanner';
+import { OFFLINE_OPACITY, StatusBanner } from '@/components/OfflineBanner';
 import { Screen } from '@/components/Screen';
 import { Bone, EmptyState, SkeletonCard } from '@/components/states';
 import { Mono, T } from '@/components/T';
 import { useCopy } from '@/copy/wording';
 import { eventTypeOrder, eventTypes, sectorNames } from '@/data/catalog';
-import { useSnapshot } from '@/data/SnapshotProvider';
+import { useSnapshot, type SnapshotStatus } from '@/data/SnapshotProvider';
 import type { EventType, SectorId } from '@/data/types';
 import { useReduceMotion } from '@/lib/a11y';
 import { signed } from '@/lib/format';
@@ -52,12 +52,15 @@ function LiveDot() {
   );
 }
 
-function LivePill({ offline, count }: { offline: boolean; count: number }) {
+function LivePill({ status, count }: { status: SnapshotStatus; count: number }) {
   const c = useColors();
+  // Not live: offline, or connected while the service is unavailable.
+  const offline = status === 'offline' || status === 'error';
+  const label = status === 'error' ? 'Paused' : 'Offline';
   return (
     <View
       accessible
-      accessibilityLabel={offline ? 'Offline' : count ? `Live, ${count} new events` : 'Live'}
+      accessibilityLabel={offline ? label : count ? `Live, ${count} new events` : 'Live'}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -70,7 +73,7 @@ function LivePill({ offline, count }: { offline: boolean; count: number }) {
     >
       {offline ? <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.dim }} /> : <LiveDot />}
       <T size={12} weight={600} color={offline ? c.mute : c.ember}>
-        {offline ? 'Offline' : count ? `Live · ${count} new` : 'Live'}
+        {offline ? label : count ? `Live · ${count} new` : 'Live'}
       </T>
     </View>
   );
@@ -84,12 +87,13 @@ export default function Feed() {
   const { data, status, refresh } = useSnapshot();
   const mySectors = usePrefs((s) => s.sectors);
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
-  const offline = status === 'offline';
+  const offline = status === 'offline' || status === 'error';
 
   if (!data) {
     return (
       <Screen tabBar>
         <Header eyebrow="UPDATING…" title="Live feed" />
+        <StatusBanner />
         <SkeletonCard style={{ marginHorizontal: 14, height: 70, padding: 14, gap: 10 }}>
           <Bone width="40%" />
           <Bone height={10} />
@@ -114,21 +118,22 @@ export default function Feed() {
     (f.kind === 'all' || (f.kind === 'type' && filter.kind === 'type' && f.type === filter.type) || (f.kind === 'sector' && filter.kind === 'sector' && f.sector === filter.sector));
 
   const chips: { f: Filter; label: string; count: number }[] = [
-    { f: { kind: 'all' }, label: 'All', count: total },
-    ...eventTypeOrder
-      .filter((t) => t !== 'supply')
-      .map((t) => ({ f: { kind: 'type', type: t } as Filter, label: eventTypes[t].chip, count: data.eventMix.find((m) => m.type === t)?.count ?? 0 })),
+    { f: { kind: 'all' } as Filter, label: 'All', count: total },
+    ...eventTypeOrder.map((t) => ({ f: { kind: 'type', type: t } as Filter, label: eventTypes[t].chip, count: data.eventMix.find((m) => m.type === t)?.count ?? 0 })),
     ...mySectors.map((s) => ({ f: { kind: 'sector', sector: s } as Filter, label: sectorNames[s], count: data.events.filter((e) => e.sectors.includes(s)).length })),
-  ];
+  ]
+    // Only filters that would show something (phishing has no event source, and live events don't
+    // name sectors yet), plus whichever is selected so it can be seen and changed.
+    .filter((chip) => chip.f.kind === 'all' || chip.count > 0 || isOn(chip.f));
 
   return (
     <Screen tabBar onRefresh={refresh}>
       <Header
         eyebrow={`${filterName ? filterName.toUpperCase() : 'GLOBAL'} · LAST 24H`}
         title="Live feed"
-        right={<LivePill offline={offline} count={data.newEvents} />}
+        right={<LivePill status={status} count={data.newEvents} />}
       />
-      {offline && <OfflineBanner />}
+      <StatusBanner />
       <Card style={{ gap: 8 }}>
         <CardHeader left={L.feedMix(total)} right={L.netImpact(data.netImpact24h)} />
         <StackedBar

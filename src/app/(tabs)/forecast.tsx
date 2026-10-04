@@ -5,7 +5,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { CountUp, Tile, TileRow } from '@/components/data';
 import { Card, CardHeader, Header, HeaderPill } from '@/components/layout';
-import { OFFLINE_OPACITY, OfflineBanner } from '@/components/OfflineBanner';
+import { OFFLINE_OPACITY, StatusBanner } from '@/components/OfflineBanner';
 import { Screen } from '@/components/Screen';
 import { Bone, SkeletonCard } from '@/components/states';
 import { Mono, T } from '@/components/T';
@@ -70,12 +70,13 @@ export default function Forecast() {
   const { L } = copy;
   const { accessibility } = useTextSize();
   const { data, status } = useSnapshot();
-  const offline = status === 'offline';
+  const offline = status === 'offline' || status === 'error';
 
   if (!data) {
     return (
       <Screen tabBar>
         <Header eyebrow="UPDATING…" title="Forecast" />
+        <StatusBanner />
         <SkeletonCard style={{ marginHorizontal: 14, height: 300, padding: 14, gap: 16 }}>
           {[100, 90, 95, 80, 85, 70, 90].map((w, i) => (
             <Bone key={i} width={`${w}%`} height={10} />
@@ -98,7 +99,7 @@ export default function Forecast() {
         title="Forecast"
         right={<HeaderPill label="Global" accessibilityLabel="Scope: Global. Show regions" onPress={() => router.push('/now/breakdown?view=regions')} />}
       />
-      {offline && <OfflineBanner />}
+      <StatusBanner />
       <View style={{ gap: 10, opacity: offline ? OFFLINE_OPACITY : 1 }}>
         <TileRow wrap={accessibility}>
           <Tile

@@ -4,7 +4,7 @@ import { copyFor } from '@/copy/wording';
 import { sampleSnapshot } from '@/data/sample';
 import { backtest, backtestSeries, expectedAlerts, notificationPreviews, personalIndex, ruleLabel, ruleSub } from '@/lib/alerts';
 import { lineChart, movingAverage } from '@/lib/charts';
-import { signed, signedInt } from '@/lib/format';
+import { ago, signed, signedInt } from '@/lib/format';
 import { threatFor } from '@/lib/threats';
 import { defaultPrefs, defaultRules, rulesFromOnboarding, usePrefs } from '@/state/store';
 import { bandFor } from '@/theme/tokens';
@@ -25,6 +25,14 @@ describe('format', () => {
     expect(signed(-0.04)).toBe('0.0');
     expect(signedInt(-5)).toBe('−5');
     expect(signedInt(0)).toBe('0');
+  });
+
+  it('says how long ago', () => {
+    const now = Date.parse('2026-10-04T12:00:00Z');
+    expect(ago('2026-10-04T11:59:30Z', now)).toBe('JUST NOW');
+    expect(ago('2026-10-04T11:35:00Z', now)).toBe('25 MIN AGO');
+    expect(ago('2026-10-04T09:00:00Z', now)).toBe('3H AGO');
+    expect(ago('2026-10-02T12:00:00Z', now)).toBe('2 DAYS AGO');
   });
 });
 
