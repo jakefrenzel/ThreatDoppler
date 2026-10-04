@@ -95,8 +95,8 @@ Chosen for milestone 1. All are free, small daily or hourly pulls.
 The method has to be simple enough to explain on "How the index works" and stable enough that the
 bands mean something.
 
-**Signals.** Each signal is one daily count, totalled over a trailing 7 days. A sub-index has one or
-more signals:
+**Signals.** Each signal is one daily value (a count, or for Radar a volume or share). A sub-index has
+one or more signals:
 - Exploitation: KEV additions; CVEs whose EPSS score rose above 0.5.
 - Ransomware: RansomLook posts; KEV additions marked as used in ransomware campaigns.
 - Supply chain: new malicious packages in OSV.
@@ -108,20 +108,32 @@ more signals:
 - Phishing: the share of all email Cloudflare Radar flags as malicious, and the share that's malicious
   and harvests credentials.
 
-**Scores (0–100).** Each signal's 7-day total is ranked as a percentile of that signal's own previous
-two years (a midrank, so ties count half), and a sub-index is the mean of its signals' percentiles.
-So 85 or more (Severe) means "busier than 85% of days in the last two years". This makes very different
-sources comparable and keeps the bands meaningful. Signals are ranked separately rather than added,
-because their scales differ: about one KEV addition a day against dozens of EPSS crossings, so a sum
-would just be EPSS. A signal needs 28 days of history before it counts, and a gap in it leaves the
-next 7 days unranked. EPSS crossings aren't counted on the day the EPSS model changes (that moves
-every score at once) or when the previous day's file is missing. Once real history exists, check that
-the bands roughly match the design's intent (Severe should be rare). If not, adjust the mapping
-without changing the bands.
+**Scores (0–100).** Only complete UTC days are scored; a day still in progress always looks quiet,
+so the app shows the latest complete day.
+1. **Level.** A signal's level on a day is an exponentially weighted total of its last 35 days: each
+   day counts half as much as one 5 days newer. (A plain 7-day total made scores fall off a cliff a
+   week after any spike, when it left the window. Tested on the last year, the 5-day half-life cut the
+   average daily move of a signal's rank from 5.2 to 4.6 points, and the 95th percentile from 24 to
+   14. A 3-day half-life was jumpier; 7 days reacted too slowly.)
+2. **Rank.** The level is ranked against that signal's own previous two years (a midrank, so ties count
+   half). A signal needs 28 days of history before it counts, and a gap in it leaves the next 35 days
+   unranked. EPSS crossings aren't counted on the day the EPSS model changes (that moves every score
+   at once) or when the previous day's file is missing. Signals are ranked separately rather than
+   added, because their scales differ: about one KEV addition a day against dozens of EPSS crossings,
+   so a sum would just be EPSS.
+3. **Sub-index.** The mean of its signals' ranks is the sub-index's raw value. That raw value is ranked
+   against the sub-index's own previous two years (at least 90 days) and **calibrated** onto the
+   scale so the bands match the design: Low is the quietest ~3% of days, Guarded the next ~21%,
+   Elevated ~50%, High ~21% and Severe the busiest ~5%. (Calibrated 2026-10-04: as plain percentiles,
+   sub-indices were Severe on 7–35% of days. After calibration, 3–10% over the last two years; rising
+   trends such as 2025's supply-chain surge still show as High or Severe.)
 
-**Index.** The weighted mean of the available sub-index scores (decision 3). The 24-hour and 7-day
-changes are plain differences. The "90% CI" figure is the 90% spread of the index's day-to-day noise
-around its 28-day trend.
+**Index.** The weighted mean (decision 3) of each sub-index's latest score from the last 2 days; older
+than that, a sub-index is stale and its weight is spread over the others. That raw value is ranked
+against the index's own previous two years and calibrated the same way. Over the last two years: Low
+4%, Guarded 28%, Elevated 48%, High 17%, Severe 4%, moving 4.8 points a day on average. The 24-hour
+and 7-day changes are plain differences. The "90% CI" figure is the 90% spread of the index's
+day-to-day noise around its 28-day trend.
 
 **Sectors and regions.** These are modelled. A sector's score is the sector's own mix of attack types
 (from VCDB incidents by industry) applied to the six global scores, adjusted by sector-specific signals
@@ -144,7 +156,9 @@ score. The app labels these views "modelled estimate" until real sector or regio
   the full five years.
 - 30D and 90D use daily values. 1Y uses weekly averages and 5Y monthly averages, matching the app's
   existing ranges.
-- "Peaks" are the biggest highs, each labelled with the largest event that week.
+- "Peaks" are the three biggest highs, at least 5 (30D), 10 (90D), 30 (1Y) or 90 (5Y) days apart.
+  Until events exist (step 7), each is labelled with the sub-index that contributed most that day;
+  then it'll be the largest event that week.
 - Time-in-band and the other stats are computed from the same series.
 
 **Events (last 24 hours).** Generated by rules:
@@ -240,9 +254,13 @@ App ──► fetch latest.json (fall back to the RPC) ──► existing Snapsh
     no database activity, and it's unclear whether cron jobs count.
 - **Deployment:** manual from the CLI at first. Later, a workflow on push to `main`
   (`supabase link`, `db push`, `functions deploy --use-api`).
-- **Backfill:** a one-off Node script run from a manual GitHub Actions workflow. It walks the KEV,
-  EPSS, RansomLook, OSV and HIBP archives from 2021 and fills the daily tables, so the edge functions
-  only ever handle the latest data.
+- **Backfill:** KEV and HIBP need none (their feeds hold everything). RansomLook and Radar backfill
+  through their own functions (`{"from": "2021-10-01"}` and `{"days": 730}` in the request body).
+  EPSS and OSV use `scripts/backfill/index.mjs`, which streams the EPSS daily archive (about 3 GB) and
+  OSV's per-ecosystem zips (about 260 MB) and writes SQL, applied with
+  `npx supabase db query --linked -f <file>`. It ran locally on 2026-10-04; a GitHub Actions workflow
+  can wrap it later. Then `select public.compute_scores('2021-01-01')` recomputes everything (about a
+  minute).
 
 ## Repo changes
 

@@ -1,10 +1,12 @@
-// Recomputes scores, then renders the snapshot the app reads and uploads it to the public
-// snapshot bucket. Runs hourly. Until every part of the Snapshot is computed, the file is marked
-// partial and the app fills the rest from sample data behind a dev flag.
+// Renders the snapshot the app reads from the scores compute_scores() wrote (cron, at :15) and
+// uploads it to the public snapshot bucket. Runs hourly at :20. Until every part of the Snapshot
+// is computed, the file is marked partial and the app fills the rest from sample data behind a dev
+// flag.
 import { withSupabase } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { IndexSummary, SnapshotFile, VectorId, VectorScore } from "../../../src/data/types.ts";
+import { buildHistory, type IndexDay } from "../_shared/history.ts";
 import { check, runInBackground } from "../_shared/runs.ts";
 
 /** Bump when the file changes in a way old app builds can't read. */
@@ -29,13 +31,30 @@ function noise(values: number[]): number {
 }
 
 async function render(admin: SupabaseClient): Promise<number> {
-  check(await admin.rpc("compute_scores"), "compute_scores");
-
-  // Newest first: 28 days of trend plus 90 days of residuals is plenty.
-  const days = (check(
-    await admin.from("index_daily").select("day, value").order("day", { ascending: false }).limit(120),
-    "read index_daily",
-  ) ?? []).map((r) => ({ day: r.day as string, value: Number(r.value) })).reverse();
+  const weights = new Map(
+    (check(await admin.from("vectors").select("id, weight"), "read vectors") ?? [])
+      .map((v) => [v.id as VectorId, Number(v.weight)]),
+  );
+  // Five years of the index, oldest first. PostgREST returns at most 1000 rows per request.
+  const days: IndexDay[] = [];
+  for (let from = 0; ; from += 1000) {
+    const page = check(
+      await admin.from("index_daily").select("day, value, vectors").order("day", { ascending: true })
+        .gte("day", new Date(Date.now() - 1830 * 86_400_000).toISOString().slice(0, 10)).range(from, from + 999),
+      "read index_daily",
+    ) ?? [];
+    for (const r of page) {
+      // The sub-index that added most to that day's index.
+      let top: VectorId | null = null;
+      let best = -1;
+      for (const [id, score] of Object.entries(r.vectors as Record<string, number>)) {
+        const part = Number(score) * (weights.get(id as VectorId) ?? 0);
+        if (part > best) [top, best] = [id as VectorId, part];
+      }
+      days.push({ day: r.day, value: Number(r.value), top });
+    }
+    if (page.length < 1000) break;
+  }
   if (!days.length) throw new Error("index_daily is empty");
   const values = days.map((d) => d.value);
   const at = (back: number) => values[values.length - 1 - back];
@@ -51,21 +70,20 @@ async function render(admin: SupabaseClient): Promise<number> {
   // Same rule as compute_index(): each sub-index shows its latest score from the last 2 days, and
   // its 24-hour change is against the day before that score.
   const shiftDay = (day: string, by: number) => new Date(Date.parse(day) + by * 86_400_000).toISOString().slice(0, 10);
-  const [weights, scores] = await Promise.all([
-    admin.from("vectors").select("id, weight"),
-    admin.from("scores_daily").select("vector, day, score").gte("day", shiftDay(today, -3))
+  const scoreRows = check(
+    await admin.from("scores_daily").select("vector, day, score").gte("day", shiftDay(today, -3))
       .order("day", { ascending: false }),
-  ]);
+    "read scores_daily",
+  ) ?? [];
   const vectors: VectorScore[] = [];
-  const scoreRows = check(scores, "read scores_daily") ?? [];
-  for (const w of check(weights, "read vectors") ?? []) {
-    const rows = scoreRows.filter((s) => s.vector === w.id);
+  for (const [id, weight] of weights) {
+    const rows = scoreRows.filter((s) => s.vector === id);
     const now = rows.find((s) => s.day >= shiftDay(today, -2));
     if (!now) continue;
     const before = rows.find((s) => s.day === shiftDay(now.day, -1));
     vectors.push({
-      id: w.id as VectorId,
-      weight: Number(w.weight),
+      id,
+      weight,
       score: Number(now.score),
       delta24h: before ? round1(Number(now.score) - Number(before.score)) : 0,
     });
@@ -93,6 +111,7 @@ async function render(admin: SupabaseClient): Promise<number> {
       index,
       trend30: values.slice(-30),
       vectors,
+      history: buildHistory(days),
     },
   };
 

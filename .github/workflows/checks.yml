@@ -52,3 +52,8 @@ jobs:
             echo "deno check $entry"
             (cd "$(dirname "$entry")" && deno check index.ts)
           done
+
+      # Shared helpers have no npm imports, so they need no import map.
+      - name: Test edge function helpers
+        working-directory: supabase/functions/_shared
+        run: deno test --no-lock
