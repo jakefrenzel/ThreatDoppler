@@ -21,7 +21,9 @@ Deno.test("builds every range from five years of days", () => {
   assert.equal(y1.series.length, 52);
   assert.ok(y5.series.length >= 60 && y5.series.length <= 61);
   assert.equal(d30.pointLabels?.at(-1), "03 OCT");
-  assert.match(y1.pointLabels?.[0] ?? "", /^WK OF \d\d [A-Z]{3}$/);
+  // A year back, a week label needs its year so it isn't read as this year's.
+  assert.match(y1.pointLabels?.[0] ?? "", /^WK OF \d\d [A-Z]{3} 25$/);
+  assert.match(y1.pointLabels?.at(-1) ?? "", /^WK OF \d\d [A-Z]{3}$/);
   assert.equal(y5.pointLabels?.at(-1), "OCT 2026");
   for (const r of ranges) {
     assert.equal(r.pointLabels?.length, r.series.length);
@@ -47,6 +49,29 @@ Deno.test("peaks are spread out and labelled with the top sub-index", () => {
   assert.deepEqual(d90.peaks.map((p) => p.value), [80, 75, 30]);
   assert.equal(d90.peaks[0].type, "exploitation");
   assert.equal(d90.peaks[0].title, "Exploitation activity peaked");
+});
+
+Deno.test("1Y peaks are the chart's weekly points, and the first matches the callout", () => {
+  // One very high day inside an otherwise quiet week, and a week that's high every day: the
+  // steady week has the higher weekly average, so it leads, as it does on the chart.
+  const values = (i: number) => (i === 100 ? 95 : i >= 200 && i < 207 ? 70 : 40);
+  const all = days(364, values);
+  all[100].event = { title: "One-day spike", type: "ransomware" };
+  all[203].event = { title: "Busy week", type: "exploitation" };
+  const [, , y1] = buildHistory(all);
+  assert.equal(y1.peaks[0].value, y1.peak.value);
+  assert.equal(y1.peak.label, `${y1.peaks[0].value} · ${y1.peaks[0].date}`);
+  assert.equal(y1.peaks[0].title, "Busy week");
+  assert.equal(y1.peaks[1].title, "One-day spike");
+  assert.ok(y1.peaks[1].value < 95, "a weekly average, not the day's 95");
+  assert.equal(y1.stats.high, 95, "HIGH stays the single highest day");
+});
+
+Deno.test("old 1Y dates carry their year", () => {
+  const values = (i: number) => (i < 7 ? 90 : 40);
+  const [, , y1] = buildHistory(days(364, values));
+  assert.match(y1.peaks[0].date, /^\d\d [A-Z]{3} 25$/);
+  assert.match(y1.peak.label, / 25$/);
 });
 
 Deno.test("a peak takes its event's title and type when there is one", () => {

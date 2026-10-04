@@ -43,27 +43,43 @@ interface Spec {
   bucket: "day" | "week" | "month";
   /** Minimum days between listed peaks, so one episode isn't listed three times. */
   peakGap: number;
-  date: (day: string) => string;
+  /** Date of a point for peaks and the callout, given the range's last day. */
+  date: (day: string, last: string) => string;
   unit: HistoryRange["unit"];
 }
+
+/** "06 OCT", or "06 OCT 25" when it's far enough back to be confused with this year's. */
+const dayMonthYear = (day: string, last: string) =>
+  Date.parse(last) - Date.parse(day) > 330 * DAY_MS ? `${dayMonth(day)} ${day.slice(2, 4)}` : dayMonth(day);
 
 const SPECS: Spec[] = [
   { key: "30D", days: 30, bucket: "day", peakGap: 5, date: dayMonth, unit: { technical: "DAILY INDEX", plain: "DAILY LEVEL" } },
   { key: "90D", days: 90, bucket: "day", peakGap: 10, date: dayMonth, unit: { technical: "DAILY INDEX", plain: "DAILY LEVEL" } },
-  { key: "1Y", days: 364, bucket: "week", peakGap: 30, date: dayMonth, unit: { technical: "WEEKLY INDEX", plain: "WEEKLY LEVEL" } },
+  { key: "1Y", days: 364, bucket: "week", peakGap: 30, date: dayMonthYear, unit: { technical: "WEEKLY INDEX", plain: "WEEKLY LEVEL" } },
   { key: "5Y", days: 1826, bucket: "month", peakGap: 90, date: monthYear, unit: { technical: "MONTHLY INDEX", plain: "MONTHLY LEVEL" } },
 ];
 
+/** One chart point, and the busiest day in it (which names it when it's a peak). */
+interface Point {
+  first: string;
+  value: number;
+  best: IndexDay;
+}
+
 /** Chart points: daily values, or averages per week (counting back from the last day) or month. */
-function bucketize(days: IndexDay[], bucket: Spec["bucket"]): { first: string; value: number }[] {
-  if (bucket === "day") return days.map((d) => ({ first: d.day, value: d.value }));
+function bucketize(days: IndexDay[], bucket: Spec["bucket"]): Point[] {
+  if (bucket === "day") return days.map((d) => ({ first: d.day, value: d.value, best: d }));
   const groups = new Map<string, IndexDay[]>();
   const last = Date.parse(days[days.length - 1].day);
   for (const d of days) {
     const key = bucket === "month" ? d.day.slice(0, 7) : String(Math.floor((last - Date.parse(d.day)) / (7 * DAY_MS)));
     groups.set(key, [...(groups.get(key) ?? []), d]);
   }
-  return [...groups.values()].map((g) => ({ first: g[0].day, value: round1(mean(g.map((d) => d.value))) }));
+  return [...groups.values()].map((g) => ({
+    first: g[0].day,
+    value: round1(mean(g.map((d) => d.value))),
+    best: g.reduce((a, b) => (b.value > a.value ? b : a)),
+  }));
 }
 
 /** Axis labels at the first point of each month (or year for 5Y), at most `max` of them. */
@@ -88,16 +104,22 @@ function axis(points: { first: string }[], spec: Spec): HistoryRange["axis"] {
   return labels.filter((l, i) => i > 0 || labels.length < 2 || labels[1].at - l.at > 0.08);
 }
 
-function peaks(days: IndexDay[], spec: Spec): HistoryRange["peaks"] {
+/**
+ * The highest chart points, so the list matches the chart: daily for 30D and 90D, weekly or
+ * monthly averages for 1Y and 5Y. The first is always the chart's callout. Each is named after
+ * the largest event around its busiest day.
+ */
+function peaks(points: Point[], spec: Spec, last: string): HistoryRange["peaks"] {
   const out: HistoryRange["peaks"] = [];
   const taken: number[] = [];
-  const sorted = [...days].sort((a, b) => b.value - a.value);
-  for (const d of sorted) {
-    const t = Date.parse(d.day);
+  // Stable, so among equal points the earliest wins, as it does for the callout.
+  const sorted = [...points].sort((a, b) => b.value - a.value);
+  for (const p of sorted) {
+    const t = Date.parse(p.first);
     if (taken.some((x) => Math.abs(x - t) < spec.peakGap * DAY_MS)) continue;
     taken.push(t);
-    const type = d.event?.type ?? d.top ?? "exploitation";
-    out.push({ date: spec.date(d.day), title: d.event?.title ?? PEAK_TITLES[type], type, value: Math.round(d.value) });
+    const type = p.best.event?.type ?? p.best.top ?? "exploitation";
+    out.push({ date: spec.date(p.first, last), title: p.best.event?.title ?? PEAK_TITLES[type], type, value: Math.round(p.value) });
     if (out.length === 3) break;
   }
   return out;
@@ -122,7 +144,8 @@ export function buildHistory(all: IndexDay[]): HistoryRange[] {
       if (v > series[peakIndex]) peakIndex = i;
     });
     const peakValue = Math.round(series[peakIndex]);
-    const peakDate = spec.date(points[peakIndex].first);
+    const lastDay = days[days.length - 1].day;
+    const peakDate = spec.date(points[peakIndex].first, lastDay);
 
     const timeInBand = BANDS
       .map(([band, lo, hi]) => ({ band, share: Math.round((values.filter((v) => v >= lo && v < hi).length / n) * 100) }))
@@ -132,7 +155,11 @@ export function buildHistory(all: IndexDay[]): HistoryRange[] {
       key: spec.key,
       series,
       pointLabels: points.map((p) =>
-        spec.bucket === "day" ? dayMonth(p.first) : spec.bucket === "week" ? `WK OF ${dayMonth(p.first)}` : `${month(p.first)} ${p.first.slice(0, 4)}`
+        spec.bucket === "day"
+          ? dayMonth(p.first)
+          : spec.bucket === "week"
+          ? `WK OF ${dayMonthYear(p.first, lastDay)}`
+          : `${month(p.first)} ${p.first.slice(0, 4)}`
       ),
       unit: spec.unit,
       axis: axis(points, spec),
@@ -148,7 +175,7 @@ export function buildHistory(all: IndexDay[]): HistoryRange[] {
         daysAbove85: values.filter((v) => v >= 85).length,
       },
       timeInBand,
-      peaks: peaks(days, spec),
+      peaks: peaks(points, spec, lastDay),
     });
   }
   return ranges;
