@@ -27,7 +27,8 @@ const genericActions: Record<ThreatEvent['type'], ThreatDetail['actions']> = {
 /** Detail for an event. Falls back to a summary built from the event when the feed has no full report. */
 export function threatFor(data: Snapshot, id: string): { event: ThreatEvent | undefined; detail: ThreatDetail } | null {
   const event = data.events.find((e) => e.id === id);
-  const detail = data.threats[id];
+  // The id comes from the URL, so ignore inherited keys like "constructor" or "__proto__".
+  const detail = Object.hasOwn(data.threats, id) ? data.threats[id] : undefined;
   if (detail) return { event, detail };
   if (!event) return null;
   const type = eventTypes[event.type];

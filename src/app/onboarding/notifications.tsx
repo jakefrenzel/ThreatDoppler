@@ -103,7 +103,7 @@ export default function NotificationsStep() {
         {prefs.extras.quietHours && (
           <View style={{ paddingVertical: 6, borderTopWidth: 1, borderTopColor: c.line }}>
             <T size={13} color={c.mute}>
-              Silent 22:00–06:30, except Severe
+              {`Silent ${prefs.quietHours.start}–${prefs.quietHours.end}, except Severe`}
             </T>
           </View>
         )}

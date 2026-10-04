@@ -31,6 +31,7 @@ export default function AlertsStep() {
   const extras = usePrefs((s) => s.extras);
   const sectors = usePrefs((s) => s.sectors);
   const regions = usePrefs((s) => s.regions);
+  const quiet = usePrefs((s) => s.quietHours);
   const set = usePrefs((s) => s.set);
   const setExtra = usePrefs((s) => s.setExtra);
 
@@ -96,7 +97,7 @@ export default function AlertsStep() {
         <ToggleRow label={copy.L.extraMorning} sub="EVERY DAY AT 07:00" value={extras.morning} onChange={(v) => setExtra('morning', v)} />
         <ToggleRow
           label="Quiet hours"
-          sub="22:00–06:30 · SEVERE STILL COMES THROUGH"
+          sub={`${quiet.start}–${quiet.end} · SEVERE STILL COMES THROUGH`}
           value={extras.quietHours}
           onChange={(v) => setExtra('quietHours', v)}
         />

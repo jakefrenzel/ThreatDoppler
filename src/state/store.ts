@@ -21,6 +21,8 @@ export interface AlertRule {
   enabled: boolean;
   /** The rule driven by the global threshold slider on Alerts. */
   global?: boolean;
+  /** Made in New rule. Redo setup keeps these and replaces the rest. */
+  custom?: boolean;
 }
 
 export type AlertLevel = 'severe' | 'high' | 'any';
@@ -69,7 +71,7 @@ interface Actions {
   toggleRule: (id: string) => void;
   addRule: (rule: Omit<AlertRule, 'id'>) => void;
   connectChannel: (channel: 'email' | 'slack', detail: string) => void;
-  /** Finishes onboarding and turns the step 3 picks into alert rules. */
+  /** Finishes onboarding and turns the step 3 picks into alert rules, keeping rules made in New rule. */
   completeOnboarding: () => void;
   /** Skip: straight to Now with the default settings. */
   skipOnboarding: () => void;
@@ -147,7 +149,7 @@ export const usePrefs = create<Prefs & Actions>()(
           rules: get().rules.map((r) => (r.global ? { ...r, value } : r)),
         }),
       toggleRule: (id) => set({ rules: get().rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)) }),
-      addRule: (rule) => set({ rules: [{ ...rule, id: newId() }, ...get().rules] }),
+      addRule: (rule) => set({ rules: [{ ...rule, id: newId(), custom: true }, ...get().rules] }),
       connectChannel: (channel, detail) =>
         set({ channels: { ...get().channels, [channel]: { connected: true, detail } } }),
       completeOnboarding: () => {
@@ -156,7 +158,7 @@ export const usePrefs = create<Prefs & Actions>()(
         set({
           onboarded: true,
           globalThreshold: threshold,
-          rules: rulesFromOnboarding(s),
+          rules: [...s.rules.filter((r) => r.custom), ...rulesFromOnboarding(s)],
           quietHours: { ...s.quietHours, enabled: s.extras.quietHours },
         });
       },

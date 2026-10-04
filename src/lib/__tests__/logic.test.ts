@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from '@jest/globals';
 
 import { copyFor } from '@/copy/wording';
 import { sampleSnapshot } from '@/data/sample';
@@ -6,7 +6,7 @@ import { backtest, backtestSeries, expectedAlerts, notificationPreviews, persona
 import { lineChart, movingAverage } from '@/lib/charts';
 import { signed, signedInt } from '@/lib/format';
 import { threatFor } from '@/lib/threats';
-import { defaultPrefs, defaultRules, rulesFromOnboarding } from '@/state/store';
+import { defaultPrefs, defaultRules, rulesFromOnboarding, usePrefs } from '@/state/store';
 import { bandFor } from '@/theme/tokens';
 
 describe('bands', () => {
@@ -125,5 +125,38 @@ describe('threat detail', () => {
 
   it('returns null for unknown ids', () => {
     expect(threatFor(sampleSnapshot, 'nope')).toBeNull();
+  });
+
+  it('ignores inherited object keys in deep links', () => {
+    for (const id of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(threatFor(sampleSnapshot, id)).toBeNull();
+    }
+  });
+});
+
+describe('redo setup', () => {
+  beforeEach(() => {
+    usePrefs.setState(defaultPrefs);
+  });
+
+  it('keeps rules made in New rule and replaces the ones setup made', () => {
+    const { addRule, completeOnboarding } = usePrefs.getState();
+    addRule({ kind: 'region', condition: 'jump', targets: ['apac'], value: 7, channels: ['slack'], enabled: true });
+    completeOnboarding();
+
+    const { rules } = usePrefs.getState();
+    expect(rules[0]).toMatchObject({ kind: 'region', targets: ['apac'], channels: ['slack'], custom: true });
+    expect(rules.slice(1).every((r) => !r.custom)).toBe(true);
+    // The design's sample rules are gone, swapped for the ones built from the step 3 picks.
+    expect(rules.some((r) => r.id === 'r-health')).toBe(false);
+    expect(rules).toHaveLength(1 + rulesFromOnboarding(defaultPrefs).length);
+  });
+
+  it('does not stack up setup rules when it runs twice', () => {
+    const { completeOnboarding } = usePrefs.getState();
+    completeOnboarding();
+    const once = usePrefs.getState().rules.length;
+    completeOnboarding();
+    expect(usePrefs.getState().rules).toHaveLength(once);
   });
 });

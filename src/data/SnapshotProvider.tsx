@@ -27,21 +27,33 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
+  const statusRef = useRef<SnapshotStatus>(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
-  const load = useCallback(async () => {
-    setStatus(dataRef.current ? 'refreshing' : 'loading');
-    try {
-      const net = await NetInfo.fetch();
-      if (net.isConnected === false) throw new Error('offline');
-      const next = await fetchSnapshot();
-      setData(next);
-      setStatus('ready');
-      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
-    } catch {
-      setStatus('offline');
-    } finally {
-      setSettled(true);
-    }
+  // Calls made while a load is running (Retry, pull to refresh, reconnecting) share it.
+  const inFlight = useRef<Promise<void> | null>(null);
+  const load = useCallback(() => {
+    if (inFlight.current) return inFlight.current;
+    const run = (async () => {
+      setStatus(dataRef.current ? 'refreshing' : 'loading');
+      try {
+        const net = await NetInfo.fetch();
+        if (net.isConnected === false) throw new Error('offline');
+        const next = await fetchSnapshot();
+        setData(next);
+        setStatus('ready');
+        AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
+      } catch {
+        setStatus('offline');
+      } finally {
+        setSettled(true);
+        inFlight.current = null;
+      }
+    })();
+    inFlight.current = run;
+    return run;
   }, []);
 
   useEffect(() => {
@@ -56,8 +68,12 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
         if (!cancelled) load();
       });
 
+    // Go offline when the connection drops, and fetch again as soon as it comes back.
     const unsubscribe = NetInfo.addEventListener((state) => {
-      if (state.isConnected === false) setStatus('offline');
+      if (state.isConnected === false) {
+        statusRef.current = 'offline';
+        setStatus('offline');
+      } else if (state.isConnected && statusRef.current === 'offline') load();
     });
     return () => {
       cancelled = true;
