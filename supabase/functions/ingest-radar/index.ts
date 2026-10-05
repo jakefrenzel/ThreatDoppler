@@ -9,12 +9,15 @@
 //
 // Radar allows daily values for up to about 91 days per request, so longer ranges are fetched in
 // windows walking back from today, each overlapping the last by a week. Only complete UTC days
-// are stored. Runs daily over the last 28 days. A backfill sends {"days": 730}; that can outrun the
-// function's time limit, so {"metrics": ["email_credential"]} redoes only the series named.
+// are stored. Besides the global series, it fetches layer 3 volume per region and layer 7 shares
+// per sector, for area scores. Runs daily over the last 28 days. A backfill sends {"days": 730};
+// that can outrun the function's time limit, so {"metrics": ["email_credential"]} redoes only the
+// series named (or "industry", or "l3_<region>").
 import { withSupabase } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { check, USER_AGENT, runInBackground } from "../_shared/runs.ts";
+import { RADAR_INDUSTRIES, RADAR_REGIONS } from "../_shared/sectors.ts";
 
 const API = "https://api.cloudflare.com/client/v4/radar";
 const DAY_MS = 86_400_000;
@@ -29,21 +32,23 @@ type Serie = Record<string, string[]> & { timestamps: string[] };
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function radar(token: string, path: string, start: Date, end: Date): Promise<Serie> {
+async function radar(token: string, path: string, start: Date, end: Date, extra: Record<string, string> = {}): Promise<Serie> {
   const params = new URLSearchParams({
     aggInterval: "1d",
     dateStart: start.toISOString(),
     dateEnd: end.toISOString(),
     format: "json",
+    ...extra,
   });
   let res: Response;
   for (let attempt = 1; ; attempt++) {
-    // Radar rate-limits bursts, so requests are spaced out and a 429 is retried after a wait.
+    // Radar rate-limits bursts and sometimes fails with a 5xx, so requests are spaced out and a 429
+    // or 5xx is retried after a wait.
     await sleep(attempt === 1 ? 500 : 15_000 * (attempt - 1));
     res = await fetch(`${API}${path}?${params}`, {
       headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT },
     });
-    if (res.status !== 429 || attempt === 4) break;
+    if ((res.status !== 429 && res.status < 500) || attempt === 4) break;
     await res.body?.cancel();
   }
   const body = await res.json().catch(() => null) as {
@@ -94,7 +99,38 @@ const METRICS: Record<string, { rescale: boolean; fetch: (token: string, start: 
       return out;
     },
   },
+  // Layer 3 attack volume by target location, per region (for region scores). Rescaled like l3.
+  ...Object.fromEntries(
+    Object.entries(RADAR_REGIONS).map(([region, filter]) => [
+      `l3_${region}`,
+      {
+        rescale: true,
+        fetch: async (t: string, s: Date, e: Date) =>
+          column(await radar(t, "/attacks/layer3/timeseries", s, e, { direction: "TARGET", ...filter }), "values"),
+      },
+    ]),
+  ),
 };
+
+/**
+ * Share (percent) of layer 7 attack requests aimed at each sector, from Radar's industry breakdown
+ * (top 100 industries; the rest are "other"). Stored in radar_sector_daily, every sector every day,
+ * 0 when none of its industries made the list. Shares are absolute, so no rescaling.
+ */
+async function industries(admin: SupabaseClient, token: string, start: Date, end: Date): Promise<number> {
+  const serie = await radar(token, "/attacks/layer7/timeseries_groups/INDUSTRY", start, end, { limitPerGroup: "100" });
+  const rows: { day: string; sector: string; share: number }[] = [];
+  serie.timestamps.forEach((ts, i) => {
+    const day = ts.slice(0, 10);
+    if (day < isoDay(start) || day >= isoDay(end)) return;
+    for (const [sector, names] of Object.entries(RADAR_INDUSTRIES)) {
+      const share = names.reduce((sum, name) => sum + (Number(serie[name]?.[i]) || 0), 0);
+      rows.push({ day, sector, share: Math.round(share * 1e6) / 1e6 });
+    }
+  });
+  if (rows.length) check(await admin.from("radar_sector_daily").upsert(rows, { onConflict: "day,sector" }), "upsert radar_sector_daily");
+  return rows.length;
+}
 
 async function stored(admin: SupabaseClient, metric: string, from: string, to: string): Promise<Series> {
   const rows = check(
@@ -111,10 +147,18 @@ async function ingest(admin: SupabaseClient, days: number, only?: string[]): Pro
   const oldest = new Date(today.getTime() - days * DAY_MS);
   let written = 0;
 
+  const windows: [Date, Date][] = [];
+  for (let end = today; end > oldest; end = new Date(end.getTime() - (WINDOW_DAYS - OVERLAP_DAYS) * DAY_MS)) {
+    windows.push([new Date(Math.max(oldest.getTime(), end.getTime() - WINDOW_DAYS * DAY_MS)), end]);
+  }
+
+  if (!only || only.includes("industry")) {
+    for (const [start, end] of windows) written += await industries(admin, token, start, end);
+  }
+
   for (const [metric, { rescale, fetch }] of Object.entries(METRICS)) {
     if (only && !only.includes(metric)) continue;
-    for (let end = today; end > oldest; end = new Date(end.getTime() - (WINDOW_DAYS - OVERLAP_DAYS) * DAY_MS)) {
-      const start = new Date(Math.max(oldest.getTime(), end.getTime() - WINDOW_DAYS * DAY_MS));
+    for (const [start, end] of windows) {
       const fresh = await fetch(token, start, end);
 
       let factor = 1;
@@ -149,7 +193,7 @@ export default {
   fetch: withSupabase({ auth: "secret" }, async (req, ctx) => {
     const params = await req.json().catch(() => ({})) as { days?: number; metrics?: string[] };
     const days = Math.min(Math.max(Math.round(params.days ?? DEFAULT_DAYS), 2), MAX_DAYS);
-    const only = Array.isArray(params.metrics) ? params.metrics.filter((m) => m in METRICS) : undefined;
+    const only = Array.isArray(params.metrics) ? params.metrics.filter((m) => m in METRICS || m === "industry") : undefined;
     return runInBackground(ctx.supabaseAdmin, "radar", () => ingest(ctx.supabaseAdmin, days, only));
   }),
 };

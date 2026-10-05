@@ -143,10 +143,28 @@ small samples, clipped to 0.5–2). `scripts/vcdb` computes the lifts from about
 incidents). Regions work the same way, using VCDB victim regions. Like the index, an area's weighted
 mean is ranked against its own two years and calibrated. Each sector or region's "top threat" is the
 attack type that contributes most to its score. The app labels these views "modelled estimate".
-*Not done yet* (as of 2026-10-04): sector-specific adjustments, such as KEV vendor/product mapped to a
-sector (medical devices → health, industrial control systems → energy/manufacturing), Radar attacks by
-industry and target location, and ransomware.live sectors (once approved, decision 2). Until then
-areas mostly follow the global scores, differing only through their mix.
+*Area-specific signals* (added 2026-10-05), so areas don't just follow the global scores:
+- **Ransomware by sector:** each RansomLook post's description (written by the group about its victim)
+  is matched against keyword rules (`postSector` in `supabase/functions/_shared/sectors.ts`), after
+  removing lists of stolen data ("medical records, tax returns"), which describe the leak rather than
+  the victim. About 60% of recent posts get a sector (28% over five years, as older posts often have no
+  description). Descriptions are read in memory only. A sector's daily value is the day's total posts
+  times its share of classified posts over the last 7 days, so changes in description coverage cancel
+  out. The mix matches published ransomware-by-sector reports (manufacturing, then health and finance).
+- **DDoS by sector:** Radar's share of layer 7 attack requests per industry (top 100 industries, mapped
+  in `RADAR_INDUSTRIES`), times the global layer 7 volume.
+- **DDoS by region:** Radar's layer 3 attack volume by target location (`RADAR_REGIONS`: country lists,
+  continent filter for Europe), rescaled across requests like the global series.
+
+Each is ranked against its own two years like the global signals. For an area, a sub-index with its
+own score uses the mean of that and the global score; the others use the global score. Result on dev
+(2026-10-04): sectors spread from 11 to 49 instead of 25 to 36, moving 4.4–5.7 points a day with Severe
+on 0–2% of days. Regions change little, since only DDoS (weight 0.10) has regional data.
+
+*Not done yet:* a KEV vendor/product → sector map (medical devices → health, industrial control →
+energy/manufacturing), regional ransomware (posts carry no country), and ransomware.live sectors and
+countries (once approved, decision 2). Recomputing area scores from 2021 takes about 2 minutes, past the
+CLI's limit; run it as a one-off cron job (`compute_area_vector_scores` then `compute_area_scores`).
 
 **Forecast.**
 - The index and each sub-index get a damped-trend forecast (Gardner–McKenzie) for the next 7 days,
