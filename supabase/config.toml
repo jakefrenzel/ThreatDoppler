@@ -457,3 +457,15 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/render-snapshot/deno.json"
 entrypoint = "./functions/render-snapshot/index.ts"
+
+[functions.send-alerts]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-alerts/deno.json"
+entrypoint = "./functions/send-alerts/index.ts"
+
+[functions.check-receipts]
+enabled = true
+verify_jwt = false
+import_map = "./functions/check-receipts/deno.json"
+entrypoint = "./functions/check-receipts/index.ts"
