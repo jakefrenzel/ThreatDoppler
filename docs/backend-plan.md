@@ -280,8 +280,16 @@ App ──► fetch latest.json (fall back to the RPC) ──► existing Snapsh
   EPSS and OSV use `scripts/backfill/index.mjs`, which streams the EPSS daily archive (about 3 GB) and
   OSV's per-ecosystem zips (about 260 MB) and writes SQL, applied with
   `npx supabase db query --linked -f <file>`. It ran locally on 2026-10-04; a GitHub Actions workflow
-  can wrap it later. Then `select public.compute_scores('2021-01-01')` recomputes everything (about a
-  minute).
+  can wrap it later. Then recompute everything from 2021. `compute_scores('2021-01-01')` does it in one
+  go but takes over 2 minutes, past the CLI's statement timeout, so run its parts as separate queries:
+  `refresh_signals()`, `compute_vector_scores('2021-01-01')` (about 80 s),
+  `compute_index('2021-01-01')`, `compute_area_scores('2021-01-01')` (about 40 s), then
+  `generate_events('2021-01-01')`.
+- **New project order** (as done for prod, 2026-10-05): link, `db push`, `functions deploy --use-api`;
+  Vault secrets and `CLOUDFLARE_RADAR_TOKEN` (by hand); run ingest-kev, then ingest-epss, -hibp, -osv,
+  -ransomlook `{"from": "2021-10-01"}` and -radar `{"days": 730}` (if it hits the time limit, redo the
+  short series with `{"metrics": [...]}`); apply the EPSS, OSV (generated the same day) and VCDB SQL;
+  recompute as above; render-snapshot. Prod matched dev to within about half a point.
 
 ## Repo changes
 
