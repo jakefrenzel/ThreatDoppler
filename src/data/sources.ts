@@ -35,7 +35,7 @@ export const dataSources: DataSource[] = [
   {
     id: 'ransomlook',
     name: 'RansomLook',
-    what: 'Ransomware leak-site posts. ThreatDoppler keeps counts only, never victim names.',
+    what: 'Ransomware leak-site posts, and their sectors from the descriptions groups post. ThreatDoppler keeps counts only, never victim names or descriptions.',
     licence: 'CC BY 4.0',
     url: 'https://www.ransomlook.io',
     eventLabel: 'RANSOMLOOK',
@@ -59,7 +59,7 @@ export const dataSources: DataSource[] = [
   {
     id: 'radar',
     name: 'Cloudflare Radar',
-    what: 'DDoS attacks and malicious email',
+    what: 'DDoS attacks, overall and by industry and target country, and malicious email',
     licence: 'CC BY-NC 4.0',
     url: 'https://radar.cloudflare.com',
     eventLabel: 'CLOUDFLARE RADAR',

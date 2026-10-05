@@ -25,7 +25,7 @@ const method: [string, string][] = [
   ],
   [
     'SECTORS AND REGIONS',
-    'These are modelled estimates. Each one applies its usual mix of attack types, from thousands of past incidents, to the global scores. They move with the global picture rather than measuring each sector directly.',
+    'These are modelled estimates. Each one weights the threat types by its usual mix of attacks, from thousands of past incidents. Where there is data on the sector or region itself, it counts too: ransomware posts sorted into sectors from their descriptions, and DDoS attacks on each sector’s industries and each region’s networks. Those threat types use the average of the sector’s own score and the global one.',
   ],
   [
     'FORECAST',

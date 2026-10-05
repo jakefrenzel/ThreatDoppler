@@ -133,7 +133,9 @@ export default function Breakdown() {
             </Mono>
           </View>
           <T size={12} leading={1.4} color={c.mute} style={{ marginHorizontal: 20 }}>
-            {`Modelled estimate. Each ${view === 'sectors' ? 'sector' : 'region'}'s score applies its usual mix of attack types to the global scores, so it moves with them.`}
+            {view === 'sectors'
+              ? 'Modelled estimate. Ransomware and DDoS use each sector’s own activity (leak-site posts sorted by description, and attacks on its industries); the rest applies its usual mix of attack types to the global scores.'
+              : 'Modelled estimate. DDoS uses attacks on each region’s own networks; the rest applies its usual mix of attack types to the global scores.'}
           </T>
         </>
       )}
