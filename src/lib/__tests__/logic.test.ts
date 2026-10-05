@@ -88,7 +88,7 @@ describe('alerts', () => {
     expect(ruleLabel(global, tech)).toBe('Global index ≥ 75');
     expect(ruleLabel(health, tech)).toBe('Health ≥ 80');
     expect(ruleLabel(finance, tech)).toBe('Finance moves ±5 in 24h');
-    expect(ruleLabel(cve, tech)).toBe('Exploited CVE, CVSS ≥ 9.0');
+    expect(ruleLabel(cve, tech)).toBe('Exploited flaws, EPSS ≥ 0.5 or ransomware');
     expect(ruleLabel(cve, plain)).toBe('Flaws attackers are using now');
     expect(ruleSub(cve)).toBe('VULN · PUSH, SLACK');
   });

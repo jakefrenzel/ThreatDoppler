@@ -13,6 +13,7 @@ import { useSnapshot } from '@/data/SnapshotProvider';
 import { ruleLabel, ruleSub } from '@/lib/alerts';
 import { setUpChannel } from '@/lib/channels';
 import { enablePush, systemName, usePushPermission } from '@/lib/notifications';
+import { useDeliveries } from '@/lib/useDeliveries';
 import { usePrefs } from '@/state/store';
 import { useColors } from '@/theme/ColorsProvider';
 import { bandFor } from '@/theme/tokens';
@@ -24,6 +25,7 @@ export default function Alerts() {
   const { data } = useSnapshot();
   const prefs = usePrefs();
   const { permission, setPermission } = usePushPermission();
+  const deliveries = useDeliveries(data, prefs.pushToken);
 
   const pushOn = prefs.pushEnabled && permission === 'granted';
   const now = data ? Math.round(data.index.value) : null;
@@ -104,15 +106,15 @@ export default function Alerts() {
           );
         })}
       </View>
-      {/* Deliveries arrive with alert delivery (milestone 3); until then live data has none. */}
-      {data && data.deliveries.length > 0 && (
+      {/* This device's pushes from the last week; hidden until there are some. */}
+      {deliveries.length > 0 && (
         <Card padding={[10, 14]} style={{ gap: 6 }}>
           <CardHeader
             left="RECENT DELIVERIES"
             right={prefs.quietHours.enabled ? `QUIET ${prefs.quietHours.start}–${prefs.quietHours.end}` : 'QUIET HOURS OFF'}
           />
-          {data.deliveries.map((d) => (
-            <View key={d.time + d.channels} style={{ flexDirection: 'row', gap: 8 }}>
+          {deliveries.map((d) => (
+            <View key={d.key} style={{ flexDirection: 'row', gap: 8 }}>
               <T mono size={12} color={c.mute} style={{ width: 38 }}>
                 {d.time}
               </T>

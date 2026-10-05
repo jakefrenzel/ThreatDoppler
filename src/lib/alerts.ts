@@ -39,7 +39,7 @@ export function ruleLabel(rule: AlertRule, copy: Copy): string {
       if (rule.condition === 'band') return plain ? 'Level changes' : 'Global index changes band';
       return plain ? `Level reaches ${rule.value} (${bandFor(rule.value).name})` : `Global index ≥ ${rule.value}`;
     case 'vuln':
-      return plain ? 'Flaws attackers are using now' : `Exploited CVE, CVSS ≥ ${rule.value.toFixed(1)}`;
+      return plain ? 'Flaws attackers are using now' : 'Exploited flaws, EPSS ≥ 0.5 or ransomware';
     case 'digest':
       if (rule.condition === 'weekly') return 'Weekly summary';
       return plain ? 'Morning summary' : 'Daily briefing';

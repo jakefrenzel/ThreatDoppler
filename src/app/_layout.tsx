@@ -11,6 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PushSync } from '@/components/PushSync';
 import { SnapshotProvider } from '@/data/SnapshotProvider';
 import { ColorsProvider } from '@/theme/ColorsProvider';
 import { palette } from '@/theme/tokens';
@@ -49,6 +50,7 @@ export default function RootLayout() {
         <SnapshotProvider>
           <ThemeProvider value={navTheme}>
             <StatusBar style="light" />
+            <PushSync />
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }}>
               <Stack.Screen name="index" options={{ animation: 'none' }} />
               <Stack.Screen name="onboarding" options={{ animation: 'fade', animationDuration: 200 }} />

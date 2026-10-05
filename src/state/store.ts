@@ -15,7 +15,7 @@ export interface AlertRule {
   condition: RuleCondition;
   /** Sector, region or attack-type ids, depending on kind. */
   targets: (SectorId | RegionId | VectorId)[];
-  /** Threshold for "above", jump size for "jump", CVSS floor for "vuln". */
+  /** Threshold for "above", jump size for "jump". Unused for "vuln" (exploited flaws likely to be used). */
   value: number;
   channels: Channel[];
   enabled: boolean;
@@ -59,6 +59,8 @@ export interface Prefs {
   channels: ChannelState;
   /** App-level push preference. Delivery also needs the OS permission. */
   pushEnabled: boolean;
+  /** This device's Expo push token once registered with the backend, or null. */
+  pushToken: string | null;
   quietHours: QuietHours;
 }
 
@@ -108,6 +110,7 @@ export const defaultPrefs: Prefs = {
     slack: { connected: true, detail: '#soc-alerts' },
   },
   pushEnabled: true,
+  pushToken: null,
   quietHours: { enabled: true, start: '22:00', end: '06:30' },
 };
 
