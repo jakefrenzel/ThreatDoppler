@@ -9,7 +9,8 @@
 //
 // Radar allows daily values for up to about 91 days per request, so longer ranges are fetched in
 // windows walking back from today, each overlapping the last by a week. Only complete UTC days
-// are stored. Runs daily over the last 28 days; a backfill sends {"days": 364}.
+// are stored. Runs daily over the last 28 days. A backfill sends {"days": 730}; that can outrun the
+// function's time limit, so {"metrics": ["email_credential"]} redoes only the series named.
 import { withSupabase } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -103,7 +104,7 @@ async function stored(admin: SupabaseClient, metric: string, from: string, to: s
   return new Map(rows.map((r) => [r.day as string, Number(r.value)]));
 }
 
-async function ingest(admin: SupabaseClient, days: number): Promise<number> {
+async function ingest(admin: SupabaseClient, days: number, only?: string[]): Promise<number> {
   const token = Deno.env.get("CLOUDFLARE_RADAR_TOKEN");
   if (!token) throw new Error("CLOUDFLARE_RADAR_TOKEN is not set");
   const today = new Date(`${isoDay(new Date())}T00:00:00Z`); // complete days only
@@ -111,6 +112,7 @@ async function ingest(admin: SupabaseClient, days: number): Promise<number> {
   let written = 0;
 
   for (const [metric, { rescale, fetch }] of Object.entries(METRICS)) {
+    if (only && !only.includes(metric)) continue;
     for (let end = today; end > oldest; end = new Date(end.getTime() - (WINDOW_DAYS - OVERLAP_DAYS) * DAY_MS)) {
       const start = new Date(Math.max(oldest.getTime(), end.getTime() - WINDOW_DAYS * DAY_MS));
       const fresh = await fetch(token, start, end);
@@ -145,8 +147,9 @@ async function ingest(admin: SupabaseClient, days: number): Promise<number> {
 
 export default {
   fetch: withSupabase({ auth: "secret" }, async (req, ctx) => {
-    const params = await req.json().catch(() => ({})) as { days?: number };
+    const params = await req.json().catch(() => ({})) as { days?: number; metrics?: string[] };
     const days = Math.min(Math.max(Math.round(params.days ?? DEFAULT_DAYS), 2), MAX_DAYS);
-    return runInBackground(ctx.supabaseAdmin, "radar", () => ingest(ctx.supabaseAdmin, days));
+    const only = Array.isArray(params.metrics) ? params.metrics.filter((m) => m in METRICS) : undefined;
+    return runInBackground(ctx.supabaseAdmin, "radar", () => ingest(ctx.supabaseAdmin, days, only));
   }),
 };
