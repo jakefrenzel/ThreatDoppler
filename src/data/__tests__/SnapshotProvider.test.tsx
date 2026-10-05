@@ -140,9 +140,10 @@ describe('SnapshotProvider', () => {
     await act(() => {
       retry = handle.refresh();
     });
-    await waitFor(() => expect(seen).toContain('offline+retrying'));
+    // A failed retry holds for 600 ms on purpose, so allow well beyond that on a busy machine.
+    await waitFor(() => expect(seen).toContain('offline+retrying'), { timeout: 3000 });
     await act(() => retry);
-    await waitFor(() => expect(seen.at(-1)).toBe('offline'));
+    await waitFor(() => expect(seen.at(-1)).toBe('offline'), { timeout: 3000 });
     expect(seen.every((s) => s.startsWith('offline'))).toBe(true);
 
     jest.mocked(fetchSnapshot).mockResolvedValue(sampleSnapshot);
