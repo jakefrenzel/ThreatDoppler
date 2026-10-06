@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { postSector, RADAR_INDUSTRIES, RADAR_REGIONS } from "./sectors.ts";
+import { kevSectors, postSector, RADAR_INDUSTRIES, RADAR_REGIONS } from "./sectors.ts";
 
 Deno.test("leak-site descriptions map to the victim's sector", () => {
   assert.equal(postSector("A regional hospital network serving three counties."), "health");
@@ -30,4 +30,14 @@ Deno.test("every sector and region has a Radar mapping, with no industry in two 
   assert.equal(Object.keys(RADAR_INDUSTRIES).length, 10);
   assert.equal(Object.keys(RADAR_REGIONS).length, 5);
   for (const r of Object.values(RADAR_REGIONS)) assert.ok(r.location || r.continent);
+});
+
+Deno.test("KEV vendors map to a sector only when their products belong to one", () => {
+  assert.deepEqual(kevSectors("Siemens"), ["energy", "manufacturing"]);
+  assert.deepEqual(kevSectors("Schneider Electric "), ["energy", "manufacturing"]);
+  assert.deepEqual(kevSectors("NextGen Healthcare"), ["health"]);
+  assert.deepEqual(kevSectors("PaperCut"), ["education"]);
+  for (const vendor of ["Microsoft", "Cisco", "Fortinet", "Ivanti", "Hikvision", "Sangoma"]) {
+    assert.deepEqual(kevSectors(vendor), [], vendor);
+  }
 });

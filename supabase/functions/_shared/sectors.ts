@@ -74,3 +74,26 @@ export const RADAR_REGIONS: Record<Region, { location?: string; continent?: stri
   mea: { location: "AE,SA,IL,TR,EG,ZA,NG,KE,QA,KW,BH,OM,JO,LB,IR,IQ,MA,DZ,TN,GH,ET,TZ,UG,CI,SN,CM,AO" },
   latam: { location: "MX,BR,AR,CO,CL,PE,VE,EC,GT,CU,BO,DO,HN,PY,SV,NI,CR,PA,UY,PR" },
 };
+
+/**
+ * Sectors a KEV entry's vendor mostly sells to, for tagging feed events. Most KEV entries are
+ * products every sector runs (Microsoft, Cisco, Fortinet…) and get none, which the app shows as
+ * "All". Only makers whose products clearly belong to a sector are listed: industrial control
+ * (PLCs, SCADA, HMIs) is energy and manufacturing; PaperCut is listed because CISA's advisory on
+ * its exploitation (AA23-131A) named the education sector.
+ */
+const KEV_VENDORS: [RegExp, Sector[]][] = [
+  [/^(siemens|schneider electric|rockwell|unitronics|openplc|delta electronics|indusoft|trihedral)\b/i, ["energy", "manufacturing"]],
+  [/^solarview\b/i, ["energy"]],
+  [/^(ptc|dassault syst)/i, ["manufacturing"]],
+  [/^nextgen healthcare\b/i, ["health"]],
+  [/^(justice av solutions|trimble)\b/i, ["government"]],
+  [/^(sierra wireless|simalliance|dasan|arcadyan)\b/i, ["telecom"]],
+  [/^sunhillo\b/i, ["transport"]],
+  [/^mirasvit\b/i, ["retail"]],
+  [/^papercut\b/i, ["education"]],
+];
+
+export function kevSectors(vendor: string): Sector[] {
+  return KEV_VENDORS.find(([re]) => re.test(vendor.trim()))?.[1] ?? [];
+}

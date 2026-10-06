@@ -161,8 +161,17 @@ own score uses the mean of that and the global score; the others use the global 
 (2026-10-04): sectors spread from 11 to 49 instead of 25 to 36, moving 4.4–5.7 points a day with Severe
 on 0–2% of days. Regions change little, since only DDoS (weight 0.10) has regional data.
 
-*Not done yet:* a KEV vendor/product → sector map (medical devices → health, industrial control →
-energy/manufacturing), regional ransomware (posts carry no country), and ransomware.live sectors and
+*Event sectors* (added 2026-10-06): feed events carry the sectors they hit, for the Feed's sector
+filters and "who is hit" on the detail page (`eventSectors` in `supabase/functions/_shared/events.ts`).
+A ransomware surge takes the sectors of that gang's posts that day (`ransom_group_sector_daily`,
+counts only; shares are of the posts whose sector is known), a DDoS spike Radar's share of that day's
+layer 7 attacks per sector, a malicious-package wave technology, and a KEV addition its vendor's
+sector from a short map (`kevSectors`: PLC/SCADA makers → energy and manufacturing, and a few others).
+Breaches and most KEV entries carry none, shown as every sector. KEV is *not* used as a sector
+score signal: only about 5 of 550 additions in two years are clearly sector-specific, so a daily
+series would sit at zero and then jump.
+
+*Not done yet:* regional ransomware (posts carry no country), and ransomware.live sectors and
 countries (once approved, decision 2). Recomputing area scores from 2021 takes about 2 minutes, past the
 CLI's limit; run it as a one-off cron job (`compute_area_vector_scores` then `compute_area_scores`).
 

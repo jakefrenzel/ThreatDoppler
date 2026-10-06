@@ -1,5 +1,6 @@
 // Counts ransomware leak-site posts per group per day from RansomLook (CC BY 4.0), and per sector
-// from the description each group writes about its victim (see postSector). Victim names and
+// from the description each group writes about its victim (see postSector), overall and per group
+// (for tagging surge events with the sectors they hit). Victim names and
 // descriptions are read in memory and dropped; only counts are stored. Runs hourly over the last 7
 // days, replacing those days, because posts get backdated, edited and removed. A one-off backfill
 // sends {"from": "2021-10-01"} in the body; it covers group counts only, and sector counts for
@@ -21,21 +22,30 @@ const utcDay = (s: string) => isoDay(new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s
 
 async function sectors(admin: SupabaseClient, from: string, today: string): Promise<number> {
   const res = await fetchOk(`${API}/posts/period/${from}/${today}`);
-  const posts = await res.json() as { discovered?: string; description?: string }[];
+  const posts = await res.json() as { discovered?: string; description?: string; group_name?: string }[];
   if (!Array.isArray(posts)) throw new Error("RansomLook period response is not a list");
   const counts = new Map<string, number>();
+  const byGroup = new Map<string, number>();
+  const add = (m: Map<string, number>, key: string) => m.set(key, (m.get(key) ?? 0) + 1);
   for (const post of posts) {
     if (!post.discovered) continue;
     const day = utcDay(post.discovered);
     if (day < from) continue;
     const sector = postSector(post.description);
-    if (sector) counts.set(`${day}|${sector}`, (counts.get(`${day}|${sector}`) ?? 0) + 1);
+    if (!sector) continue;
+    add(counts, `${day}|${sector}`);
+    if (post.group_name) add(byGroup, `${day}|${post.group_name}|${sector}`);
   }
   const rows = [...counts].map(([key, n]) => {
     const [day, sector] = key.split("|");
     return { day, sector, posts: n };
   });
-  return check(await admin.rpc("replace_ransom_sectors", { p_from: from, p_rows: rows }), "replace_ransom_sectors");
+  const groupRows = [...byGroup].map(([key, n]) => {
+    const [day, group_name, sector] = key.split("|");
+    return { day, group_name, sector, posts: n };
+  });
+  return check(await admin.rpc("replace_ransom_sectors", { p_from: from, p_rows: rows }), "replace_ransom_sectors") +
+    check(await admin.rpc("replace_ransom_group_sectors", { p_from: from, p_rows: groupRows }), "replace_ransom_group_sectors");
 }
 
 async function ingest(admin: SupabaseClient, fromParam: string | undefined): Promise<number> {

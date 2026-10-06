@@ -1,7 +1,8 @@
 // Words events for the app: a feed item (ThreatEvent) and a detail page (ThreatDetail) per event,
 // in Technical and Plain wording. Events are facts from the events table (see the events
 // migration); nothing here invents numbers.
-import type { ThreatDetail, ThreatEvent, VectorId, Worded } from "../../../src/data/types.ts";
+import type { SectorId, ThreatDetail, ThreatEvent, VectorId, Worded } from "../../../src/data/types.ts";
+import { kevSectors } from "./sectors.ts";
 
 export interface EventRow {
   id: string;
@@ -214,9 +215,50 @@ function words(e: EventRow): Wording {
   }
 }
 
+/** Most sectors listed on an event's detail page. */
+const TARGETED_MAX = 4;
+
+/**
+ * Sectors an event hit, for the feed's sector filters, and the share of it each took ("who is hit"
+ * on the detail page). Only from data that says so: the sectors of a gang's own posts that day
+ * (share of its posts whose sector is known), Radar's share of that day's layer 7 attacks per
+ * sector, and the vendor map for KEV. Malicious packages are aimed at software developers, so
+ * technology. Breaches carry no sector. No sectors means every sector, as the app shows it.
+ */
+export function eventSectors(e: EventRow): { sectors: SectorId[]; targeted: ThreatDetail["targeted"] } {
+  const d = e.data;
+  switch (e.kind) {
+    case "kev":
+      return { sectors: kevSectors(String(d.vendor)), targeted: [] };
+    case "package_wave":
+      return { sectors: ["technology"], targeted: [] };
+    case "ransom_surge": {
+      const counts = (Object.entries(d.sectors ?? {}) as [SectorId, number][]).filter(([, n]) => n > 0);
+      const known = counts.reduce((a, [, n]) => a + n, 0);
+      const ranked = counts.sort((a, b) => b[1] - a[1]);
+      return {
+        sectors: ranked.map(([s]) => s),
+        targeted: ranked.slice(0, TARGETED_MAX).map(([sector, n]) => ({ sector, share: Math.round((100 * n) / known) })),
+      };
+    }
+    case "ddos_spike": {
+      // Shares of all attack requests; industries outside the ten sectors make up the rest.
+      const ranked = (Object.entries(d.sectors ?? {}) as [SectorId, number][])
+        .map(([sector, share]) => ({ sector, share: Math.round(Number(share)) }))
+        .filter((t) => t.share >= 1)
+        .sort((a, b) => b.share - a.share)
+        .slice(0, TARGETED_MAX);
+      return { sectors: ranked.map((t) => t.sector), targeted: ranked };
+    }
+    case "breach":
+      return { sectors: [], targeted: [] };
+  }
+}
+
 /** Feed item and detail page for one event. */
 export function describe(e: EventRow, ctx: EventContext): { event: ThreatEvent; detail: ThreatDetail } {
   const x = words(e);
+  const { sectors, targeted } = eventSectors(e);
   const impact = Math.round(ctx.impact * 10) / 10;
   const max = Math.max(0, ...ctx.bins);
   return {
@@ -229,7 +271,7 @@ export function describe(e: EventRow, ctx: EventContext): { event: ThreatEvent; 
       source: x.source,
       meta: x.meta,
       impact,
-      sectors: [],
+      sectors,
       regions: [],
     },
     detail: {
@@ -242,7 +284,7 @@ export function describe(e: EventRow, ctx: EventContext): { event: ThreatEvent; 
         peak: max ? `PEAK ${short(max)} / DAY` : "",
         values: max ? ctx.bins.map((v) => Math.round((v / max) * 100)) : ctx.bins.map(() => 0),
       },
-      targeted: [],
+      targeted,
       iocs: [],
       actions: x.actions,
     },

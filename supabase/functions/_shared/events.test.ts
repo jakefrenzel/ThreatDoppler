@@ -97,3 +97,35 @@ Deno.test("KEV required actions are cut to a checklist item", () => {
   assert.equal(odd.technical, "Reconfigure the appliance.");
   assert.ok(kevAction("y".repeat(300), name).technical.length <= 120);
 });
+
+Deno.test("events carry the sectors they hit, and only from data that says so", () => {
+  const surge: EventRow = {
+    id: "ransom-qilin-2026-10-03", kind: "ransom_surge", type: "ransomware", vector: "ransomware", at, magnitude: 14,
+    data: { group: "qilin", posts: 14, day: "2026-10-03", sectors: { health: 2, manufacturing: 6, finance: 1, retail: 1, education: 1, energy: 1 } },
+  };
+  const s = describe(surge, ctx);
+  assert.deepEqual(s.event.sectors.slice(0, 2), ["manufacturing", "health"]);
+  assert.equal(s.event.sectors.length, 6);
+  // Shares of the posts whose sector is known (12 of 14), top four only.
+  assert.deepEqual(s.detail.targeted, [
+    { sector: "manufacturing", share: 50 },
+    { sector: "health", share: 17 },
+    { sector: "finance", share: 8 },
+    { sector: "retail", share: 8 },
+  ]);
+
+  const ddos: EventRow = {
+    id: "ddos-l7-2026-10-03", kind: "ddos_spike", type: "ddos", vector: "ddos", at, magnitude: 1.3,
+    data: { day: "2026-10-03", ratio: 1.3, sectors: { finance: 11.6, technology: 24.2, government: 3.1, health: 0.4 } },
+  };
+  const d = describe(ddos, ctx);
+  assert.deepEqual(d.event.sectors, ["technology", "finance", "government"]);
+  assert.deepEqual(d.detail.targeted, [{ sector: "technology", share: 24 }, { sector: "finance", share: 12 }, { sector: "government", share: 3 }]);
+
+  // Generic products and events without sector data hit every sector, shown as none.
+  assert.deepEqual(describe(kev, ctx).event.sectors, []);
+  assert.deepEqual(describe({ ...surge, data: { group: "qilin", posts: 14, day: "2026-10-03" } }, ctx).event.sectors, []);
+  const plc = describe({ ...kev, data: { ...kev.data, vendor: "Unitronics", product: "Vision PLC and HMI" } }, ctx);
+  assert.deepEqual(plc.event.sectors, ["energy", "manufacturing"]);
+  assert.deepEqual(plc.detail.targeted, []);
+});
