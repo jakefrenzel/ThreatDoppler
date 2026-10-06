@@ -188,7 +188,12 @@ CLI's limit; run it as a one-off cron job (`compute_area_vector_scores` then `co
 - "MAE 7D" is the average error of the last 30 days of logged index forecasts against what actually
   happened. Forecasts are logged in `forecasts` once a day, so it's real, not claimed; until 30 have
   come due, the backtest's MAE is shown.
-- EPSS as an early signal for exploitation is a later improvement.
+- EPSS as an early signal was tested on 2026-10-06 and **not adopted**. A per-horizon correction
+  from EPSS crossings (their percentile, its 7-day change, or its gap to KEV's), trained on Oct 2023 to
+  Sep 2025 and tested on the following year, changed the 7-day MAE by about 1% (exploitation 10.95 →
+  10.81, index 9.14 → 9.05 at best, and worse for some features), with training correlations of 0.2 or
+  less. EPSS crossings over a week don't predict KEV additions over the next two (r = −0.05, also after
+  allowing for recent KEV additions). EPSS already counts in the exploitation score as it happens.
 
 **History.**
 - Daily index values from October 2021, when all the core sources are available. That gives close to
