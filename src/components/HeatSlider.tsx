@@ -26,6 +26,12 @@ export function HeatSlider({ value, onChange, marker, markerLabel, min = 0, max 
   const c = useColors();
   const [width, setWidth] = useState(0);
   const drag = useRef({ x0: 0, page0: 0 });
+  // Widths of the 0, max and marker labels, so the marker label can sit under the marker.
+  const [labels, setLabels] = useState({ min: 0, max: 0, marker: 0 });
+  const measure = (key: keyof typeof labels) => (e: { nativeEvent: { layout: { width: number } } }) => {
+    const w = e.nativeEvent.layout.width;
+    setLabels((l) => (l[key] === w ? l : { ...l, [key]: w }));
+  };
 
   const fromX = (x: number) => {
     if (!width) return min;
@@ -34,6 +40,16 @@ export function HeatSlider({ value, onChange, marker, markerLabel, min = 0, max 
   };
 
   const pct = (v: number) => `${((v - min) / (max - min)) * 100}%` as const;
+
+  // Centred under the marker, but kept clear of the end labels.
+  const gap = 8;
+  const markerLeft =
+    marker !== undefined && width && labels.marker
+      ? Math.max(
+          labels.min + gap,
+          Math.min(width - labels.max - gap - labels.marker, ((marker - min) / (max - min)) * width - labels.marker / 2),
+        )
+      : null;
 
   return (
     <View>
@@ -89,15 +105,21 @@ export function HeatSlider({ value, onChange, marker, markerLabel, min = 0, max 
         </View>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: -8 }}>
-        <Mono size={9} tracking={0} color={c.dim}>
+        <Mono size={9} tracking={0} color={c.dim} onLayout={measure('min')}>
           {String(min)}
         </Mono>
         {markerLabel ? (
-          <Mono size={9} tracking={0} color={c.mute}>
+          <Mono
+            size={9}
+            tracking={0}
+            color={c.mute}
+            onLayout={measure('marker')}
+            style={{ position: 'absolute', left: markerLeft ?? 0, opacity: markerLeft === null ? 0 : 1 }}
+          >
             {markerLabel}
           </Mono>
         ) : null}
-        <Mono size={9} tracking={0} color={c.dim}>
+        <Mono size={9} tracking={0} color={c.dim} onLayout={measure('max')}>
           {String(max)}
         </Mono>
       </View>
