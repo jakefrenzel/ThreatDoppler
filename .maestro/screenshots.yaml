@@ -1,5 +1,5 @@
 # App Store screenshots, run by .github/workflows/screenshots.yml on an iPhone Pro Max simulator.
-# Goes through onboarding with a few sectors picked, then captures each screen. Files are numbered
+# Goes through onboarding with the default sectors, then captures each screen. Files are numbered
 # in the order they should appear on the App Store.
 appId: com.threatdoppler.app
 ---
@@ -20,9 +20,6 @@ appId: com.threatdoppler.app
 - extendedWaitUntil:
     visible: "Set your scope"
     timeout: 15000
-- tapOn: "Finance"
-- tapOn: "Health"
-- tapOn: "Technology"
 - scrollUntilVisible:
     element:
       text: "Continue"
