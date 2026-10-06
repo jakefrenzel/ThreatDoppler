@@ -97,13 +97,19 @@ jobs:
           cd screenshots
           maestro test --udid "${{ steps.sim.outputs.udid }}" --debug-output ../maestro-debug ../.maestro/screenshots.yaml
 
-      - name: Check the screenshots
+      # takeScreenshot writes next to the flow file or the working directory depending on the Maestro
+      # version, so gather the numbered files from wherever they landed.
+      - name: Collect the screenshots
         if: always()
         run: |
-          ls -la screenshots || true
+          mkdir -p screenshots
+          find . "$HOME/.maestro" -name '0[0-9]-*.png' -not -path './screenshots/*' -not -path './node_modules/*' \
+            -exec cp {} screenshots/ \; 2>/dev/null || true
           for f in screenshots/*.png; do
-            [ -e "$f" ] && echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {printf "%s ", $2}')"
+            [ -e "$f" ] || continue
+            echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {printf "%s ", $2}')"
           done
+          ls screenshots/*.png > /dev/null
 
       - uses: actions/upload-artifact@v7
         if: always()
