@@ -55,14 +55,17 @@ jobs:
           path: backup
 
       # Plain SQL at fixed paths, so git stores each night as a small diff and the history is the
-      # list of past backups.
+      # list of past backups. Push devices and their deliveries are left out: git history would keep
+      # them after a user deletes them (the privacy policy says it doesn't), and phones re-register on
+      # their next launch anyway.
       - name: Dump roles, schema and data
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/roles.sql --role-only
           supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
-          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --data-only --use-copy
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --data-only --use-copy \
+            -x public.devices,public.alert_state,public.deliveries
 
       - name: Push to backup repo
         working-directory: backup
