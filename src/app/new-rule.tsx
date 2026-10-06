@@ -87,13 +87,18 @@ export default function NewRule() {
   const band = bandFor(above);
 
   const pushReady = permission !== 'denied';
+  // Push is always available to a rule; if the phone blocks it, the rule still saves and alerts once
+  // notifications are allowed again.
   const channelInfo: { ch: Channel; label: string; connected: boolean; detail: string }[] = [
-    { ch: 'push', label: 'PUSH', connected: pushReady, detail: pushReady ? 'This phone' : `Blocked in ${systemName}` },
+    { ch: 'push', label: 'PUSH', connected: true, detail: pushReady ? 'This phone' : `Blocked in ${systemName}` },
     { ch: 'email', label: 'EMAIL', connected: prefs.channels.email.connected, detail: prefs.channels.email.connected ? prefs.channels.email.detail : 'Coming later' },
     { ch: 'slack', label: 'SLACK', connected: prefs.channels.slack.connected, detail: prefs.channels.slack.connected ? prefs.channels.slack.detail : 'Coming later' },
   ];
   const activeChannels = channels.filter((ch) => channelInfo.find((i) => i.ch === ch)!.connected);
   const canSave = (kind === 'index' || targets.length > 0) && activeChannels.length > 0;
+
+  // A rule needs somewhere to send, so the last channel that's on can't be turned off.
+  const isLast = (ch: Channel) => activeChannels.length === 1 && activeChannels[0] === ch;
 
   const toggleChannel = (info: (typeof channelInfo)[number]) => {
     if (!info.connected) {
@@ -101,6 +106,7 @@ export default function NewRule() {
       setUpChannel(info.ch);
       return;
     }
+    if (isLast(info.ch)) return;
     setChannels((cs) => (cs.includes(info.ch) ? cs.filter((x) => x !== info.ch) : [...cs, info.ch]));
   };
 
@@ -215,9 +221,9 @@ export default function NewRule() {
                 key={info.ch}
                 onPress={() => toggleChannel(info)}
                 accessibilityRole="checkbox"
-                accessibilityState={{ checked: on, disabled: info.ch === 'push' && !info.connected }}
+                accessibilityState={{ checked: on, disabled: isLast(info.ch) }}
                 accessibilityLabel={`${info.label}, ${info.detail}`}
-                accessibilityHint={info.connected || info.ch === 'push' ? undefined : 'Not available yet'}
+                accessibilityHint={isLast(info.ch) ? 'A rule needs at least one channel' : info.connected ? undefined : 'Not available yet'}
                 style={{
                   flex: 1,
                   paddingVertical: 9,
