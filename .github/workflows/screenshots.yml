@@ -1,0 +1,117 @@
+name: Screenshots
+
+# App Store screenshots: a Release build on the largest iPhone simulator (the 6.9" size App Store
+# Connect asks for), reading live prod data, driven through the app by .maestro/screenshots.yaml.
+# Run it by hand from the Actions tab; the images are attached to the run as an artifact.
+#
+# Uses the SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY secrets that backup.yml already has.
+# EXPO_PUBLIC_SCREENSHOTS=1 stops the simulator from registering for push on prod.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    name: Take screenshots
+    runs-on: macos-26
+    timeout-minutes: 75
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_SCREENSHOTS: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install pods
+        working-directory: ios
+        run: pod install
+
+      # The newest iPhone "Pro Max" simulator on the image is the 6.9" size.
+      - name: Pick and boot the simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | jq -r '
+            [.devices | to_entries[] | select(.key | test("iOS")) | .value[]
+              | select(.name | test("Pro Max$"))] | last | .udid')
+          name=$(xcrun simctl list devices available --json | jq -r --arg u "$udid" '
+            [.devices[][] | select(.udid == $u)][0].name')
+          if [ -z "$udid" ] || [ "$udid" = "null" ]; then
+            echo "No Pro Max simulator found"; xcrun simctl list devices available; exit 1
+          fi
+          echo "Using $name ($udid)"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid"
+
+      - name: Build the app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/ThreatDoppler.xcworkspace \
+            -scheme ThreatDoppler \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tail -n 80
+
+      - name: Install the app and tidy the status bar
+        run: |
+          udid=${{ steps.sim.outputs.udid }}
+          xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/ThreatDoppler.app
+          xcrun simctl status_bar "$udid" override \
+            --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Take the screenshots
+        run: |
+          mkdir -p screenshots
+          cd screenshots
+          maestro test --udid "${{ steps.sim.outputs.udid }}" --debug-output ../maestro-debug ../.maestro/screenshots.yaml
+
+      - name: Check the screenshots
+        if: always()
+        run: |
+          ls -la screenshots || true
+          for f in screenshots/*.png; do
+            [ -e "$f" ] && echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {printf "%s ", $2}')"
+          done
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: app-store-screenshots
+          path: screenshots/*.png
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: maestro-debug
+          path: maestro-debug
+          if-no-files-found: ignore
