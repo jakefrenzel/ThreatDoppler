@@ -8,6 +8,9 @@ name: Screenshots
 # EXPO_PUBLIC_SCREENSHOTS=1 stops the simulator from registering for push on prod.
 on:
   workflow_dispatch:
+  # TEMP while the flow is being tuned; remove before merging.
+  push:
+    branches: [screenshots-workflow]
 
 permissions:
   contents: read
