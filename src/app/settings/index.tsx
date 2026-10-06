@@ -11,7 +11,9 @@ import { enablePush, systemName, usePushPermission } from '@/lib/notifications';
 import { usePrefs } from '@/state/store';
 import { useColors } from '@/theme/ColorsProvider';
 
-const listOrNone = (names: string[], none: string) => (names.length ? names.join(', ') : none);
+/** "Finance, Health" or, past two, "Finance, Health +2". */
+const listOrNone = (names: string[], none: string) =>
+  !names.length ? none : names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ');
 
 /** 11 Settings */
 export default function Settings() {

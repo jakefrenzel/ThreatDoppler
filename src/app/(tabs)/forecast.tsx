@@ -145,7 +145,7 @@ export default function Forecast() {
             <View
               key={d.day}
               accessible
-              accessibilityLabel={`${DAY_NAMES[d.day]}, ${d.point}, ${bandFor(d.point).name}, range ${d.lo} to ${d.hi}, ${signedInt(d.delta)}`}
+              accessibilityLabel={`${DAY_NAMES[d.day]}, ${Math.round(d.point)}, ${bandFor(d.point).name}, range ${Math.round(d.lo)} to ${Math.round(d.hi)}, ${signedInt(d.delta)}`}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderTopWidth: 1, borderTopColor: c.line }}
             >
               <T mono size={11} weight={600} style={{ width: 34 }}>
@@ -153,17 +153,17 @@ export default function Forecast() {
               </T>
               {!accessibility && (
                 <T mono size={11} color={c.mute} style={{ width: 20 }}>
-                  {String(d.lo)}
+                  {String(Math.round(d.lo))}
                 </T>
               )}
               <RangeBar day={d} />
               {!accessibility && (
                 <T mono size={11} color={c.mute} style={{ width: 20 }}>
-                  {String(d.hi)}
+                  {String(Math.round(d.hi))}
                 </T>
               )}
               <T size={15} weight={600} style={{ width: 24 }}>
-                {String(d.point)}
+                {String(Math.round(d.point))}
               </T>
               <T mono size={11} color={d.delta > 0 ? c.ember : c.b1} style={{ width: 28 }} align="right">
                 {signedInt(d.delta)}

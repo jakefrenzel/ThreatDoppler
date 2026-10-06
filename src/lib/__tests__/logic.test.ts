@@ -4,7 +4,7 @@ import { copyFor } from '@/copy/wording';
 import { sampleSnapshot } from '@/data/sample';
 import { backtest, backtestSeries, expectedAlerts, notificationPreviews, personalIndex, ruleLabel, ruleSub } from '@/lib/alerts';
 import { lineChart, movingAverage, trendDomain } from '@/lib/charts';
-import { ago, signed, signedInt } from '@/lib/format';
+import { ago, ordinal, signed, signedInt } from '@/lib/format';
 import { threatFor } from '@/lib/threats';
 import { defaultPrefs, defaultRules, rulesFromOnboarding, usePrefs } from '@/state/store';
 import { bandFor } from '@/theme/tokens';
@@ -18,6 +18,12 @@ describe('bands', () => {
 });
 
 describe('format', () => {
+  it('ordinals', () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 100, 111].map(ordinal)).toEqual([
+      '1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', '100th', '111th',
+    ]);
+  });
+
   it('signs numbers with a typographic minus', () => {
     expect(signed(6.1)).toBe('+6.1');
     expect(signed(-1)).toBe('−1.0');

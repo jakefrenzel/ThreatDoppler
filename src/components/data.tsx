@@ -62,7 +62,7 @@ export function Tile({
         {label}
       </Mono>
       {typeof value === 'string' || typeof value === 'number' || (isValidElement(value) && value.type === CountUp) ? (
-        <T mono={valueMono} size={valueSize} weight={600} color={valueColor} style={{ marginTop: valueGap }} numberOfLines={1}>
+        <T mono={valueMono} size={valueSize} weight={600} color={valueColor} style={{ marginTop: valueGap }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
           {value}
         </T>
       ) : (

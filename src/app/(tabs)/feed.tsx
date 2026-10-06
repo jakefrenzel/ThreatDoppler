@@ -187,8 +187,8 @@ export default function Feed() {
                       {type.label}
                     </Mono>
                   </View>
-                  {/* Titles may truncate in lists; the full title is on the detail sheet. */}
-                  <T size={13} weight={500} leading={1.3} numberOfLines={1}>
+                  {/* Titles get two lines in lists (real ones run long); the full title is on the detail sheet. */}
+                  <T size={13} weight={500} leading={1.3} numberOfLines={2}>
                     {title}
                   </T>
                   <Mono size={9} tracking={0} color={c.mute} numberOfLines={1}>

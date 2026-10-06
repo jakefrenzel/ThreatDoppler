@@ -66,7 +66,8 @@ export function NavRow({ label, value, onPress, first }: { label: string; value?
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <T size={14} weight={500} style={{ flex: 1 }}>
+      {/* The label keeps its width; a long value is cut short instead. */}
+      <T size={14} weight={500} style={{ flexGrow: 1, flexShrink: 0 }}>
         {label}
       </T>
       {value ? (

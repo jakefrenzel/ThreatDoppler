@@ -4,7 +4,7 @@
 // are suggestions and should be confirmed with design.
 import { usePrefs } from '@/state/store';
 import type { Wording, Worded } from '@/data/types';
-import { localDay, localTime, signed, utcTime } from '@/lib/format';
+import { localDay, localTime, ordinal, signed, utcTime } from '@/lib/format';
 
 const technical = {
   nowEyebrow: (iso: string, model: string) => `MODEL ${model} · ${utcTime(iso)} UTC`,
@@ -29,7 +29,7 @@ const technical = {
   outlook: 'VECTOR OUTLOOK',
   outlookSub: 'SUB-INDEX BY DAY',
 
-  feedMix: (n: number) => `${n} EVENTS · 24H`,
+  feedMix: (n: number) => `${n} ${n === 1 ? 'EVENT' : 'EVENTS'} · 24H`,
   netImpact: (n: number) => `NET IMPACT ${signed(n)}`,
 
   threshold: 'GLOBAL THRESHOLD',
@@ -47,7 +47,7 @@ const technical = {
     above70: 'DAYS ≥ 70',
     above85: 'DAYS ≥ 85',
   },
-  percentileValue: (p: number) => `${p}th`,
+  percentileValue: (p: number) => ordinal(p),
   timeInBand: 'TIME IN BAND',
 
   iocs: 'IOCS',
@@ -87,7 +87,7 @@ const plain: Labels = {
   outlook: 'THREAT TYPES AHEAD',
   outlookSub: 'LEVEL BY DAY',
 
-  feedMix: (n: number) => `${n} EVENTS TODAY`,
+  feedMix: (n: number) => `${n} ${n === 1 ? 'EVENT' : 'EVENTS'} TODAY`,
   netImpact: (n: number) => `LEVEL CHANGE ${signed(n)}`,
 
   threshold: 'ALERT ME FROM',

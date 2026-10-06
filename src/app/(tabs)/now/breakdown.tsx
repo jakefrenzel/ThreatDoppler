@@ -9,7 +9,7 @@ import { BackHeader, Card } from '@/components/layout';
 import { Screen } from '@/components/Screen';
 import { Mono, T } from '@/components/T';
 import { useCopy } from '@/copy/wording';
-import { regionNames, sectorNames, vectorNames } from '@/data/catalog';
+import { regionNames, sectorNames, sectorShort, vectorNames } from '@/data/catalog';
 import { useSnapshot } from '@/data/SnapshotProvider';
 import type { AreaScore } from '@/data/types';
 import { useTextSize } from '@/lib/a11y';
@@ -34,6 +34,8 @@ export default function Breakdown() {
   const rows: AreaScore<string>[] = data ? (view === 'sectors' ? data.sectors : data.regions) : [];
   const mine: string[] = view === 'sectors' ? mySectors : myRegions;
   const name = (id: string) => (view === 'sectors' ? sectorNames[id as keyof typeof sectorNames] : regionNames[id as keyof typeof regionNames].medium);
+  // The tiles are a third of the width: "Tech 48" rather than "Technolog…".
+  const tileName = (id: string) => (view === 'sectors' ? (sectorShort[id as keyof typeof sectorShort] ?? name(id)) : name(id));
 
   const hottest = [...rows].sort((a, b) => b.score - a.score)[0];
   const cooling = [...rows].sort((a, b) => a.delta24h - b.delta24h)[0];
@@ -63,9 +65,9 @@ export default function Breakdown() {
       {data && hottest && (
         <>
           <TileRow wrap={accessibility}>
-            <Tile highlight label="HOTTEST" value={<CountUp value={hottest.score} format={(n) => `${name(hottest.id)} ${n.toFixed(0)}`} />} />
+            <Tile highlight label="HOTTEST" value={<CountUp value={hottest.score} format={(n) => `${tileName(hottest.id)} ${n.toFixed(0)}`} />} />
             <Tile label="YOUR AVERAGE" value={average !== null ? <CountUp value={average} digits={0} /> : '—'} />
-            <Tile label="COOLING" value={name(cooling.id)} valueColor={c.b1} />
+            <Tile label="COOLING" value={tileName(cooling.id)} valueColor={c.b1} />
           </TileRow>
           <Card padding={[8, 14, 4]}>
             <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 6 }}>

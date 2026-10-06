@@ -19,6 +19,13 @@ export function signedInt(n: number): string {
 }
 
 /** Arrow delta used on onboarding sector rows: ▲5, ▼2, —. */
+/** 1 → "1st", 2 → "2nd", 12 → "12th", 23 → "23rd". */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+  return `${n}${suffix}`;
+}
+
 export function arrowDelta(n: number): string {
   return n > 0 ? `▲${n}` : n < 0 ? `▼${Math.abs(n)}` : '—';
 }
