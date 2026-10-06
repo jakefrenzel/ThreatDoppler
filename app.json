@@ -50,6 +50,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "bcaf81d1-245e-4d4e-9ea9-3d107ea31d48"
+      }
+    },
+    "owner": "jakefrenzel"
   }
 }
