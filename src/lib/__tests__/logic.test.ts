@@ -90,7 +90,7 @@ describe('alerts', () => {
     expect(ruleLabel(finance, tech)).toBe('Finance moves ±5 in 24h');
     expect(ruleLabel(cve, tech)).toBe('Exploited flaws, EPSS ≥ 0.5 or ransomware');
     expect(ruleLabel(cve, plain)).toBe('Flaws attackers are using now');
-    expect(ruleSub(cve)).toBe('VULN · PUSH, SLACK');
+    expect(ruleSub(cve)).toBe('VULN · PUSH');
   });
 
   it('turns onboarding picks into rules', () => {
@@ -149,6 +149,24 @@ describe('threat detail', () => {
   });
 });
 
+describe('saved prefs from before v1', () => {
+  it('disconnects the sample email and Slack and keeps rules on push only', () => {
+    const migrate = usePrefs.persist.getOptions().migrate!;
+    const old = {
+      ...defaultPrefs,
+      channels: { email: { connected: true, detail: '2 recipients' }, slack: { connected: true, detail: '#soc-alerts' } },
+      rules: [
+        { ...defaultRules[0], channels: ['push', 'email'] },
+        { ...defaultRules[2], channels: ['slack'] },
+      ],
+    };
+    const prefs = migrate(old, 0) as typeof defaultPrefs;
+    expect(prefs.channels.email.connected).toBe(false);
+    expect(prefs.channels.slack.connected).toBe(false);
+    expect(prefs.rules.map((r) => r.channels)).toEqual([['push'], []]);
+  });
+});
+
 describe('redo setup', () => {
   beforeEach(() => {
     usePrefs.setState(defaultPrefs);
@@ -156,11 +174,11 @@ describe('redo setup', () => {
 
   it('keeps rules made in New rule and replaces the ones setup made', () => {
     const { addRule, completeOnboarding } = usePrefs.getState();
-    addRule({ kind: 'region', condition: 'jump', targets: ['apac'], value: 7, channels: ['slack'], enabled: true });
+    addRule({ kind: 'region', condition: 'jump', targets: ['apac'], value: 7, channels: ['push'], enabled: true });
     completeOnboarding();
 
     const { rules } = usePrefs.getState();
-    expect(rules[0]).toMatchObject({ kind: 'region', targets: ['apac'], channels: ['slack'], custom: true });
+    expect(rules[0]).toMatchObject({ kind: 'region', targets: ['apac'], channels: ['push'], custom: true });
     expect(rules.slice(1).every((r) => !r.custom)).toBe(true);
     // The design's sample rules are gone, swapped for the ones built from the step 3 picks.
     expect(rules.some((r) => r.id === 'r-health')).toBe(false);

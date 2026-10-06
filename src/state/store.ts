@@ -72,7 +72,6 @@ interface Actions {
   setThreshold: (value: number) => void;
   toggleRule: (id: string) => void;
   addRule: (rule: Omit<AlertRule, 'id'>) => void;
-  connectChannel: (channel: 'email' | 'slack', detail: string) => void;
   /** Finishes onboarding and turns the step 3 picks into alert rules, keeping rules made in New rule. */
   completeOnboarding: () => void;
   /** Skip: straight to Now with the default settings. */
@@ -84,14 +83,14 @@ export const levelThreshold: Record<AlertLevel, number> = { severe: 85, high: 75
 let counter = 0;
 const newId = () => `r${Date.now().toString(36)}${(counter++).toString(36)}`;
 
-// Matches the sample state shown on 07 Alerts.
+// Matches the sample state shown on 07 Alerts. Push only: email and Slack aren't sent yet.
 export const defaultRules: AlertRule[] = [
-  { id: 'r-global', kind: 'index', condition: 'above', targets: [], value: 75, channels: ['push', 'email'], enabled: true, global: true },
+  { id: 'r-global', kind: 'index', condition: 'above', targets: [], value: 75, channels: ['push'], enabled: true, global: true },
   { id: 'r-health', kind: 'sector', condition: 'above', targets: ['health'], value: 80, channels: ['push'], enabled: true },
-  { id: 'r-finance', kind: 'sector', condition: 'jump', targets: ['finance'], value: 5, channels: ['email'], enabled: true },
-  { id: 'r-cve', kind: 'vuln', condition: 'above', targets: [], value: 9, channels: ['push', 'slack'], enabled: true },
-  { id: 'r-daily', kind: 'digest', condition: 'daily', targets: [], value: 0, channels: ['email'], enabled: true },
-  { id: 'r-weekly', kind: 'digest', condition: 'weekly', targets: [], value: 0, channels: ['email'], enabled: false },
+  { id: 'r-finance', kind: 'sector', condition: 'jump', targets: ['finance'], value: 5, channels: ['push'], enabled: true },
+  { id: 'r-cve', kind: 'vuln', condition: 'above', targets: [], value: 9, channels: ['push'], enabled: true },
+  { id: 'r-daily', kind: 'digest', condition: 'daily', targets: [], value: 0, channels: ['push'], enabled: true },
+  { id: 'r-weekly', kind: 'digest', condition: 'weekly', targets: [], value: 0, channels: ['push'], enabled: false },
 ];
 
 export const defaultPrefs: Prefs = {
@@ -105,9 +104,10 @@ export const defaultPrefs: Prefs = {
   extras: { sectorJumps: true, flaws: true, morning: false, quietHours: true },
   globalThreshold: 75,
   rules: defaultRules,
+  // Email and Slack delivery come in milestone 3; until then neither can be connected.
   channels: {
-    email: { connected: true, detail: '2 recipients' },
-    slack: { connected: true, detail: '#soc-alerts' },
+    email: { connected: false, detail: '' },
+    slack: { connected: false, detail: '' },
   },
   pushEnabled: true,
   pushToken: null,
@@ -153,8 +153,6 @@ export const usePrefs = create<Prefs & Actions>()(
         }),
       toggleRule: (id) => set({ rules: get().rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)) }),
       addRule: (rule) => set({ rules: [{ ...rule, id: newId(), custom: true }, ...get().rules] }),
-      connectChannel: (channel, detail) =>
-        set({ channels: { ...get().channels, [channel]: { connected: true, detail } } }),
       completeOnboarding: () => {
         const s = get();
         const threshold = s.alertLevel === 'any' ? s.globalThreshold : levelThreshold[s.alertLevel];
@@ -170,8 +168,19 @@ export const usePrefs = create<Prefs & Actions>()(
     {
       name: 'td.prefs.v1',
       storage: createJSONStorage(() => AsyncStorage),
+      // v1: email and Slack were sample connections that never sent anything. Disconnect them and
+      // leave rules on push only.
+      version: 1,
+      migrate: (persisted, version) => {
+        const prefs = persisted as Prefs;
+        if (version < 1) {
+          prefs.channels = defaultPrefs.channels;
+          prefs.rules = prefs.rules.map((r) => ({ ...r, channels: r.channels.filter((ch) => ch === 'push') }));
+        }
+        return prefs;
+      },
       partialize: (s) => {
-        const { set: _s, toggleSector: _a, toggleRegion: _b, setExtra: _c, setThreshold: _d, toggleRule: _e, addRule: _f, connectChannel: _g, completeOnboarding: _h, skipOnboarding: _i, ...prefs } = s;
+        const { set: _s, toggleSector: _a, toggleRegion: _b, setExtra: _c, setThreshold: _d, toggleRule: _e, addRule: _f, completeOnboarding: _h, skipOnboarding: _i, ...prefs } = s;
         return prefs;
       },
     },

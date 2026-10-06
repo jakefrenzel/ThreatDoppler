@@ -44,7 +44,7 @@ export default function NewRule() {
   const [condition, setCondition] = useState<Condition>('above');
   const [above, setAbove] = useState(85);
   const [jump, setJump] = useState(5);
-  const [channels, setChannels] = useState<Channel[]>(['push', 'email']);
+  const [channels, setChannels] = useState<Channel[]>(['push']);
   const [expanded, setExpanded] = useState(false);
 
   // Followed sectors and regions are listed first.
@@ -89,8 +89,8 @@ export default function NewRule() {
   const pushReady = permission !== 'denied';
   const channelInfo: { ch: Channel; label: string; connected: boolean; detail: string }[] = [
     { ch: 'push', label: 'PUSH', connected: pushReady, detail: pushReady ? 'This phone' : `Blocked in ${systemName}` },
-    { ch: 'email', label: 'EMAIL', connected: prefs.channels.email.connected, detail: prefs.channels.email.connected ? prefs.channels.email.detail : 'Not connected' },
-    { ch: 'slack', label: 'SLACK', connected: prefs.channels.slack.connected, detail: prefs.channels.slack.connected ? prefs.channels.slack.detail : 'Not connected' },
+    { ch: 'email', label: 'EMAIL', connected: prefs.channels.email.connected, detail: prefs.channels.email.connected ? prefs.channels.email.detail : 'Coming later' },
+    { ch: 'slack', label: 'SLACK', connected: prefs.channels.slack.connected, detail: prefs.channels.slack.connected ? prefs.channels.slack.detail : 'Coming later' },
   ];
   const activeChannels = channels.filter((ch) => channelInfo.find((i) => i.ch === ch)!.connected);
   const canSave = (kind === 'index' || targets.length > 0) && activeChannels.length > 0;
@@ -98,7 +98,7 @@ export default function NewRule() {
   const toggleChannel = (info: (typeof channelInfo)[number]) => {
     if (!info.connected) {
       if (info.ch === 'push') return;
-      setUpChannel(info.ch, () => setChannels((cs) => (cs.includes(info.ch) ? cs : [...cs, info.ch])));
+      setUpChannel(info.ch);
       return;
     }
     setChannels((cs) => (cs.includes(info.ch) ? cs.filter((x) => x !== info.ch) : [...cs, info.ch]));
@@ -217,7 +217,7 @@ export default function NewRule() {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on, disabled: info.ch === 'push' && !info.connected }}
                 accessibilityLabel={`${info.label}, ${info.detail}`}
-                accessibilityHint={info.connected ? undefined : 'Starts setup'}
+                accessibilityHint={info.connected || info.ch === 'push' ? undefined : 'Not available yet'}
                 style={{
                   flex: 1,
                   paddingVertical: 9,

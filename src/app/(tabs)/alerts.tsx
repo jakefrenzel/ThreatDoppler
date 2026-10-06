@@ -92,7 +92,7 @@ export default function Alerts() {
           const state = prefs.channels[ch];
           const label = ch === 'email' ? 'EMAIL' : 'SLACK';
           const value = state.connected ? (ch === 'slack' ? state.detail : 'On') : 'Off';
-          const sub = state.connected ? (ch === 'slack' ? 'Connected' : state.detail) : 'Not connected';
+          const sub = state.connected ? (ch === 'slack' ? 'Connected' : state.detail) : 'Coming later';
           return (
             <Pressable
               key={ch}
