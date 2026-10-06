@@ -13,6 +13,9 @@
       "bundleIdentifier": "com.threatdoppler.app",
       "infoPlist": {
         "CFBundleDisplayName": "ThreatDoppler"
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
