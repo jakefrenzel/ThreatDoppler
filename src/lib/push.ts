@@ -12,9 +12,14 @@ import type { Wording } from '@/data/types';
 export const pushProjectId: string | undefined =
   Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
 
-/** Push alerts need a native platform, an EAS project and the live backend. */
+/**
+ * Push alerts need a native platform, an EAS project and the live backend. Screenshot builds
+ * (EXPO_PUBLIC_SCREENSHOTS=1, .github/workflows/screenshots.yml) read live data but never register
+ * the simulator as a device.
+ */
 export const pushAvailable =
   Platform.OS !== 'web' &&
+  process.env.EXPO_PUBLIC_SCREENSHOTS !== '1' &&
   !!pushProjectId &&
   !!process.env.EXPO_PUBLIC_SUPABASE_URL &&
   !!process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;

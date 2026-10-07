@@ -121,7 +121,12 @@ function NowContent({ data, offline, refreshing, onRefresh }: { data: Snapshot; 
           </Card>
         </Pressable>
 
-        <Pressable onPress={() => router.push('/now/breakdown')} accessibilityRole="button" accessibilityHint="Opens the sector breakdown">
+        <Pressable
+          testID="now-breakdown"
+          onPress={() => router.push('/now/breakdown')}
+          accessibilityRole="button"
+          accessibilityHint="Opens the sector breakdown"
+        >
           <Card padding={[4, 14]}>
             <View style={{ flexDirection: 'row', gap: 8, paddingTop: 8, paddingBottom: 6 }}>
               <Mono size={10} tracking={0} color={c.mute} style={{ flex: 1 }}>
