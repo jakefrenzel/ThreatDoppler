@@ -57,25 +57,30 @@ appId: com.threatdoppler.app
 
 - tapOn: "Feed"
 - extendedWaitUntil:
-    visible:
-      id: "feed-event"
+    visible: "Live feed"
     timeout: 15000
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: "03-feed"
 
-# The first event's detail sheet, then swipe it away.
-- tapOn:
-    id: "feed-event"
-    index: 0
-- waitForAnimationToEnd:
-    timeout: 5000
-- takeScreenshot: "04-event"
-- swipe:
-    start: 50%, 15%
-    end: 50%, 90%
-- waitForAnimationToEnd:
-    timeout: 5000
+# The first event's detail sheet, then swipe it away. Early in the UTC day the feed can be empty,
+# so this one is skipped then; run again later for a fuller feed.
+- runFlow:
+    when:
+      visible:
+        id: "feed-event"
+    commands:
+      - tapOn:
+          id: "feed-event"
+          index: 0
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - takeScreenshot: "04-event"
+      - swipe:
+          start: 50%, 15%
+          end: 50%, 90%
+      - waitForAnimationToEnd:
+          timeout: 5000
 
 - tapOn: "Alerts"
 - waitForAnimationToEnd:
