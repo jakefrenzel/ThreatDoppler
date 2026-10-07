@@ -152,10 +152,11 @@ export default function Feed() {
       </ScrollView>
       {events.length === 0 ? (
         <EmptyState
-          title={`Nothing new for ${filterName}`}
+          title={filterName ? `Nothing new for ${filterName}` : 'Nothing new'}
           body="No events in the last 24 hours. New ones will appear here as they come in."
-          action={filter.kind === 'sector' ? 'Show all sectors' : 'Show all events'}
-          onAction={() => setFilter({ kind: 'all' })}
+          // Already showing everything: there's nothing to widen the filter to.
+          action={filter.kind === 'all' ? undefined : filter.kind === 'sector' ? 'Show all sectors' : 'Show all events'}
+          onAction={filter.kind === 'all' ? undefined : () => setFilter({ kind: 'all' })}
         />
       ) : (
         <Card padding={[2, 14]} style={{ opacity: offline ? OFFLINE_OPACITY : 1 }}>

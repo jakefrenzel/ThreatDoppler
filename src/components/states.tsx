@@ -124,7 +124,7 @@ export function Banner({
 }
 
 /** Centred empty state: 64 pt radar mark, a one-line title, a short explanation and a way out. */
-export function EmptyState({ title, body, action, onAction }: { title: string; body: string; action: string; onAction: () => void }) {
+export function EmptyState({ title, body, action, onAction }: { title: string; body: string; action?: string; onAction?: () => void }) {
   const c = useColors();
   return (
     <View
@@ -149,9 +149,11 @@ export function EmptyState({ title, body, action, onAction }: { title: string; b
       <T size={13} leading={1.45} color={c.mute} align="center" style={{ maxWidth: 260 }}>
         {body}
       </T>
-      <View style={{ marginTop: 4 }}>
-        <GhostPill label={action} onPress={onAction} />
-      </View>
+      {action && onAction && (
+        <View style={{ marginTop: 4 }}>
+          <GhostPill label={action} onPress={onAction} />
+        </View>
+      )}
     </View>
   );
 }
