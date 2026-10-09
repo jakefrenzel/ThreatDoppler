@@ -1,5 +1,5 @@
 import { memo, useEffect } from 'react';
-import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useReduceMotion } from '@/lib/a11y';
@@ -8,39 +8,14 @@ import { palette } from '@/theme/tokens';
 
 // The sweep trail is a conic gradient in the design:
 //   conic-gradient(from 45deg, transparent 0deg 250deg, rgba(255,107,53,.6) 360deg)
-// on a disc inset 18% inside the 100 × 100 grid. SVG has no conic gradient, so it is drawn
-// as thin wedges whose opacity ramps from 0 (110° behind the arm) to .6 (at the arm).
-const TRAIL_RADIUS = 32;
-const TRAIL_START = 45 + 250; // degrees clockwise from 12 o'clock
-const TRAIL_END = 45 + 360;
-const WEDGE = 2.5;
-
-function point(angle: number, r: number) {
-  const a = (angle * Math.PI) / 180;
-  return [50 + r * Math.sin(a), 50 - r * Math.cos(a)];
-}
-
-const wedges = (() => {
-  const out: { d: string; opacity: number }[] = [];
-  for (let a = TRAIL_START; a < TRAIL_END; a += WEDGE) {
-    const [x1, y1] = point(a, TRAIL_RADIUS);
-    // Overlap neighbours slightly so no hairline seams show between wedges.
-    const [x2, y2] = point(Math.min(a + WEDGE + 0.6, TRAIL_END), TRAIL_RADIUS);
-    const t = (a + WEDGE / 2 - TRAIL_START) / (TRAIL_END - TRAIL_START);
-    out.push({
-      d: `M50 50L${x1.toFixed(2)} ${y1.toFixed(2)}A${TRAIL_RADIUS} ${TRAIL_RADIUS} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}Z`,
-      opacity: 0.6 * t,
-    });
-  }
-  return out;
-})();
+// on a disc inset 18% inside the 100 × 100 grid. SVG has no conic gradient, so it is an image
+// (scripts/radar-trail renders it) under the ring and arm, rotating with them.
+const trail = require('../../assets/radar-trail.png');
+const TRAIL_INSET = 0.18;
 
 const MarkSvg = memo(function MarkSvg({ size }: { size: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      {wedges.map((w, i) => (
-        <Path key={i} d={w.d} fill={palette.ember} fillOpacity={w.opacity} />
-      ))}
+    <Svg width={size} height={size} viewBox="0 0 100 100" style={StyleSheet.absoluteFill}>
       <Circle cx={50} cy={50} r={33} fill="none" stroke={palette.ember} strokeWidth={7} />
       <Path d="M50 50 L72 28" stroke={palette.ember} strokeWidth={7} strokeLinecap="round" />
     </Svg>
@@ -96,7 +71,17 @@ export function RadarMark({ size, spinning = false, style }: Props) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Animated.View style={{ transform: [{ rotate }] }}>
+      <Animated.View style={{ width: size, height: size, transform: [{ rotate }] }}>
+        <Image
+          source={trail}
+          style={{
+            position: 'absolute',
+            left: size * TRAIL_INSET,
+            top: size * TRAIL_INSET,
+            width: size * (1 - 2 * TRAIL_INSET),
+            height: size * (1 - 2 * TRAIL_INSET),
+          }}
+        />
         <MarkSvg size={size} />
       </Animated.View>
     </View>
