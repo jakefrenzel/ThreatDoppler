@@ -42,7 +42,7 @@ export default function ThreatDetailSheet() {
   const close = () => router.back();
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.sheet, borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: 'hidden' }}>
+    <View testID="threat-detail" style={{ flex: 1, backgroundColor: palette.sheet, borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: 'hidden' }}>
       <Glow spec={glows.sheet} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, paddingHorizontal: 18 }}>
         <View style={{ width: 34 }} />

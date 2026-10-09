@@ -38,7 +38,8 @@ export default function Breakdown() {
   const tileName = (id: string) => (view === 'sectors' ? (sectorShort[id as keyof typeof sectorShort] ?? name(id)) : name(id));
 
   const hottest = [...rows].sort((a, b) => b.score - a.score)[0];
-  const cooling = [...rows].sort((a, b) => a.delta24h - b.delta24h)[0];
+  // Only a fall counts as cooling: when everything rose, the smallest rise isn't cooling.
+  const cooling = [...rows].filter((r) => r.delta24h < 0).sort((a, b) => a.delta24h - b.delta24h)[0];
   const picked = rows.filter((r) => mine.includes(r.id));
   const average = picked.length ? Math.round(picked.reduce((a, r) => a + r.score, 0) / picked.length) : null;
   const dColor = (d: number) => (d > 0 ? c.ember : d < 0 ? c.b1 : c.dim);
@@ -67,7 +68,7 @@ export default function Breakdown() {
           <TileRow wrap={accessibility}>
             <Tile highlight label="HOTTEST" value={<CountUp value={hottest.score} format={(n) => `${tileName(hottest.id)} ${n.toFixed(0)}`} />} />
             <Tile label="YOUR AVERAGE" value={average !== null ? <CountUp value={average} digits={0} /> : '—'} />
-            <Tile label="COOLING" value={tileName(cooling.id)} valueColor={c.b1} />
+            <Tile label="COOLING" value={cooling ? tileName(cooling.id) : 'None'} valueColor={cooling ? c.b1 : c.dim} />
           </TileRow>
           <Card padding={[8, 14, 4]}>
             <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 6 }}>

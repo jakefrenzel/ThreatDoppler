@@ -70,17 +70,28 @@ appId: com.threatdoppler.app
       visible:
         id: "feed-event"
     commands:
-      - tapOn:
-          id: "feed-event"
-          index: 0
+      # A tap can land without opening the sheet (it did on 2026-10-09 and 04-event came out as a
+      # second copy of the feed), so wait for the sheet itself and tap again if it isn't there.
+      - retry:
+          maxRetries: 2
+          commands:
+            - tapOn:
+                id: "feed-event"
+                index: 0
+            - extendedWaitUntil:
+                visible:
+                  id: "threat-detail"
+                timeout: 5000
       - waitForAnimationToEnd:
           timeout: 5000
       - takeScreenshot: "04-event"
       - swipe:
           start: 50%, 15%
           end: 50%, 90%
-      - waitForAnimationToEnd:
-          timeout: 5000
+      - extendedWaitUntil:
+          notVisible:
+            id: "threat-detail"
+          timeout: 10000
 
 - tapOn: "Alerts"
 - waitForAnimationToEnd:
