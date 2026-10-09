@@ -2,7 +2,7 @@ name: Backup
 
 # Nightly dump of the Supabase database into a separate private repo, plus a keep-alive call so the
 # free project doesn't pause. Free projects have no backups of their own. A second job checks the
-# pipeline is healthy (scripts/health.sql), so a stalled scoring job fails the run and GitHub emails.
+# pipeline is healthy (scripts/health.sql) and opens an issue when it isn't.
 #
 # Needs these repository secrets:
 #   SUPABASE_DB_URL            Session pooler connection string (GitHub runners have no IPv6, so
@@ -16,6 +16,11 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: Report a fake problem, to check the alert reaches your phone
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -85,19 +90,49 @@ jobs:
     name: Check the pipeline
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      # Each problem becomes an error annotation on the run.
+      # GitHub Mobile pushes issue assignments and @mentions but not workflow runs, so problems go to
+      # one open issue assigned to the repo owner: opened on the first failure, a comment mentioning
+      # them on each failure after that, closed once healthy. Each problem is also an error
+      # annotation on the run.
       - name: Look for stale scores and failing jobs
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TEST_ALERT: ${{ inputs.test_alert }}
         run: |
-          problems=$(psql "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 -f scripts/health.sql)
-          if [ -n "$problems" ]; then
-            while IFS= read -r problem; do echo "::error::$problem"; done <<< "$problems"
-            exit 1
+          if ! problems=$(psql "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 -f scripts/health.sql 2>&1); then
+            problems="The health query itself failed: $(tail -n 1 <<< "$problems")"
           fi
-          echo 'No problems found.'
+          if [ "$TEST_ALERT" = true ]; then
+            problems=$(printf '%s\n%s' "$problems" 'Test alert from a manual run; nothing is wrong.' | sed '/^$/d')
+          fi
+
+          gh label create pipeline-health --color B60205 --description 'Nightly health check' --force
+          issue=$(gh issue list --label pipeline-health --state open --json number -q '.[0].number')
+
+          if [ -z "$problems" ]; then
+            echo 'No problems found.'
+            if [ -n "$issue" ]; then gh issue close "$issue" --comment "Healthy again: $RUN_URL"; fi
+            exit 0
+          fi
+
+          while IFS= read -r problem; do echo "::error::$problem"; done <<< "$problems"
+          list=$(sed 's/^/- /' <<< "$problems")
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$(printf '@%s still failing:\n\n%s\n\n%s' "$OWNER" "$list" "$RUN_URL")"
+          else
+            gh issue create --title 'Pipeline health check failed' --label pipeline-health --assignee "$OWNER" \
+              --body "$(printf 'The nightly health check found:\n\n%s\n\n%s\n\nThis closes itself once the check passes.' "$list" "$RUN_URL")"
+          fi
+          exit 1
