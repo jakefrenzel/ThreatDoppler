@@ -1,7 +1,8 @@
 name: Backup
 
 # Nightly dump of the Supabase database into a separate private repo, plus a keep-alive call so the
-# free project doesn't pause. Free projects have no backups of their own.
+# free project doesn't pause. Free projects have no backups of their own. A second job checks the
+# pipeline is healthy (scripts/health.sql), so a stalled scoring job fails the run and GitHub emails.
 #
 # Needs these repository secrets:
 #   SUPABASE_DB_URL            Session pooler connection string (GitHub runners have no IPv6, so
@@ -79,3 +80,24 @@ jobs:
             git commit -m "Backup $(date -u +%F)"
             git push
           fi
+
+  health:
+    name: Check the pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Each problem becomes an error annotation on the run.
+      - name: Look for stale scores and failing jobs
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          problems=$(psql "$SUPABASE_DB_URL" -X -At -v ON_ERROR_STOP=1 -f scripts/health.sql)
+          if [ -n "$problems" ]; then
+            while IFS= read -r problem; do echo "::error::$problem"; done <<< "$problems"
+            exit 1
+          fi
+          echo 'No problems found.'
